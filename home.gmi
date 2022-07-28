@@ -1,0 +1,5 @@
+=> url   Things I'd like to do here
+
+=> url   A guide to hosting a gemini capsule on a VPS
+
+=> url   Cool shit on the internet

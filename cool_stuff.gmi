@@ -1,0 +1,16 @@
+# Cool Stuff
+
+=> https://danluu.com   Dan Luu's blog. A very well written programming blog
+
+=> https://wiki.xxiivv.com/site/home.html    Devine Lu Linvega's memex. An inspiration for this capsule
+
+=> gemini://gemini.circumlunar.space/users/hundredrabbits    Hundred Rabbits, the art/research collective that Devine Lu Linvega belongs to
+=> https://100r.co    Hundred Rabbits on the web
+
+=> https://tls13.xargs.org    An illustrated breakdown of TLS 1.3
+
+=> https://12factor.net    Some design principles for modern software, if you've got to build modern software
+
+=> https://ziglang.org    The Zig programming language
+
+=> https://git-scm.com/book/en/v2    Pro Git ebook. Git gud at git

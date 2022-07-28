@@ -1,0 +1,7 @@
+# Things I would like to do here
+* host the capsule
+* add instructions for hosting a capsule
+* bihost the capsule on the web
+* maybe even trihost the capsule on the web and gopher
+* add instructions for bihosting and/or trihosting. perhaps create a tool to help people do the same
+
