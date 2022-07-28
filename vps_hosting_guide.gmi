@@ -1,0 +1,53 @@
+# A Guide to Hosting a Gemini Capsule on a VPS
+
+While this guide is meant to be as beginner friendly as possible, it is important to note up front that there are inherent risks and responsibilities associated with running and maintaining a server that is connected to the internet. I've done my best to provide guidance on best practices for security, but this is limited by my own knowledge and I am far from an expert. I welcome corrections and additional advice.
+
+## What is a VPS?
+
+VPS stands for Virtual Private Server. It is a virtual machine running on somebody else's physical server. The box running your VPS will also be running many others. Virtual machines provide isolation from the host machine, meaning nobody with a VPS that is running on the same physical machine is able to access your VPS. This is true so long as an attacker does not have an exploit called a virtual machine escape.
+
+=> https://en.wikipedia.org/wiki/Virtual_machine_escape   The Wikipedia page on virtual machine escapes. Includes a list of publicly disclosed virtual machine escapes.
+
+## Choosing a VPS
+
+There are many VPS providers available. If you google it you will find piles of guides on choosing a VPS host, written by the VPS hosts themselves for the sake of SEO.
+
+I like DigitalOcean. They have a nice interface, they have instances starting at $4 per month, and they are reliable. Depending on your bandwidth and compute load you may be able to get away with a free-tier instance from one of the major cloud providers.
+
+### Some VPS Hosts
+
+=> https://www.digitalocean.com DigitalOcean
+
+=> https://aws.amazon.com AWS (Amazon Web Services)
+
+=> https://azure.microsoft.com Azure (Microsoft)
+
+=> https://cloud.google.com GCP (Google Cloud Platform. Could be shuttered at any moment if google gets bored)
+
+## Choosing an Operating System
+
+Your VPS provider likely has many OS images available. Important considerations are:
+ * can you run the Gemini server you intend to use on the OS?
+ * how familiar are you with the particular OS and its tools, e.g. its package manager?
+ * is it stable? (don't pick arch)
+ * does it get timely security updates?
+ * don't use Windows Server
+
+Major linux distros are probably all fine choices.
+
+## Registering a domain name
+
+TODO
+
+## Other Prerequisites
+
+ * you have created an ssh key
+
+## Launching your Instance
+
+The instructions in this section will be based on DigitalOcean, but the steps should broadly be the same across cloud providers. I will try to stick to general terms as opposed to DigitalOcean specific terms, e.g. "instance" instead of "droplet"
+
+
+
+
+## Deploying your Pages
