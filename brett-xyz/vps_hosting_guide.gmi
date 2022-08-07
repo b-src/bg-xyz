@@ -39,13 +39,32 @@ Major linux distros are probably all fine choices.
 
 TODO
 
-## Other Prerequisites
+## Creating an SSH key
 
- * you have created an ssh key
+SSH keys are an example of asymmetrical cryptography, which uses a pair of keys: one public and one private. Messages that are encrypted using the public key can only be decrypted using the private key. Public keys can be shared, while private keys should NEVER be shared.
+
+Using ssh keys for user authentication provides more security than relying on passwords.
+
+Here is a command using ssh-keygen which will generate a new key pair at the location specified by -f using the algorithm specified by -t.
+
+``` command line instruction for generating an ssh key
+ $ ssh-keygen -t ed25519 -f ~/.ssh/<my_key_name>
+```
+
+This command will create two files: a private key at ~/.ssh/<my_key_name>, and a public key at ~/.ssh/<my_key_name>.pub
+
 
 ## Launching your Instance
 
 The instructions in this section will be based on DigitalOcean, but the steps should broadly be the same across cloud providers. I will try to stick to general terms as opposed to DigitalOcean specific terms, e.g. "instance" instead of "droplet"
+
+From your VPS provider's dashboard:
+ * select an instance size
+ * select a base image/OS
+ * select a region
+ * if possible, provide your public ssh key at the time of instance creation
+
+## Securing your Instance
 
 
 
