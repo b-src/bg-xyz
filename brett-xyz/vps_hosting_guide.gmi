@@ -63,10 +63,229 @@ From your VPS provider's dashboard:
  * select a base image/OS
  * select a region
  * if possible, provide your public ssh key at the time of instance creation
+ * launch the instance
+
+## Logging into your Instance
+
+Connect to the instance via ssh
+
+``` command line instruction for connecting to your instance via ssh
+ $ ssh root@<instance.ip>
+```
 
 ## Securing your Instance
 
+### Create a non-root user to log in with
 
+``` command line instruction for creating a new user
+ $ useradd <username>
+```
+
+You will be prompted for a password. Choose a strong, unique, randomly generated password.
+
+Add the user to the sudoers group
+
+``` command line instruction for adding a user to the sudoers group
+ $ usermod -aG sudo <username>
+```
+
+On some linux distros the sudoers group is called 'wheel' rather than 'sudo'.
+
+Enable ssh login for the new user. If you provided a public key at the time of instance creation, you will just need to copy the .ssh directory to the new user's home directory 
+
+``` command line instruction for enabling ssh login for the new user
+ $ rsync --archive --chown=<username>:<username> ~/.ssh /home/<username>
+```
+
+### Log in as the new user
+
+Exit your original ssh session. Log in again, this time specifying your new user account
+
+``` command line instruction for connecting to your instance via ssh with a non-root user account
+ $ ssh <username>@<instance.ip>
+```
+
+Once you're able to log in with the new user account you're ready to begin locking down your instance.
+
+### Disable root login and password authentication
+
+``` command line instruction for editing the sshd_config file
+ $ sudo vim /etc/ssh/sshd_config
+```
+
+Find the PermitRootLogin setting. Change the value from yes to no.
+
+Find the PasswordAuthentication setting. Change the value from yes to no. If you were able to supply your public key at the time of instance creation, this may already be set to no
+
+Save your changes. The ssh daemon must be restarted for your changes to take effect.
+
+``` command line instruction for restarting the sshd service
+ $ sudo systemctl reload sshd
+```
+
+As a fun exercise, check the authentication log to see how many attempted logins you've had since spinning up your instance
+
+``` command line instruction for printing the authentication log
+ $ sudo cat /var/log/auth.log
+```
+
+
+### Update packages to latest versions
+
+Instructions shown are for Ubuntu. Substitute the package manager commands for your chosen distro as needed.
+
+``` command line instructions for upgrading packages on Ubuntu
+ $ sudo apt update
+ $ sudo apt upgrade
+```
+
+### Lock down unused ports
+
+To see what ports are listening you can use a tool like lsof
+
+``` command line instruction for listing listening ports
+ $ sudo lsof -i -P n | grep LISTEN
+```
+
+At this point you should see sshd on port 22 and systemd-resolve on port 53
+TODO: can systemd-resolve be turned off? Is this list different for different distros?
+
+### Configure firewall rules
+
+iptables rules can be viewed by running
+
+``` command line instruction to list iptables rules
+ $ sudo iptables -L -v
+```
+
+Set firewall rule to allow traffic on port 22 (ssh)
+
+``` command line instruction for configuring iptables rule to allow ssh traffic
+ $ sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+```
+
+Set firewall rule to allow traffic on port 80 (http)
+
+``` command line instruction for configuring iptables rule to allow https traffic
+ $ sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+
+```
+
+Set firewall rule to allow traffic on port 443 (https)
+
+``` command line instruction for configuring iptables rule to allow https traffic
+ $ sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+
+```
+
+Set firewall rule to allow traffic on gemini port
+
+``` command line instruction for configuring iptables rule to allow gemini traffic
+ $ sudo iptables -A INPUT -p tcp --dport 1965 -j ACCEPT
+
+```
+Set firewall rule to drop all other traffic
+
+``` command line instruction for configuring iptables rule to drop other traffic
+ $ sudo iptables -A INPUT -j DROP
+
+```
+
+At this point list the iptables rules again with the following command.
+
+``` command line instruction to list iptables rules
+ $ sudo iptables -L -v
+```
+
+It's important that your rules for accepting traffic on ports comes above your rule to drop all other traffic.
 
 
 ## Deploying your Pages
+
+### Install Nginx as a reverse proxy
+
+``` command line instruction for installing nginx
+ $ sudo apt install nginx
+```
+
+If you run the lsof command to list open ports, you should now see entries for port 80 for nginx.
+
+If you open a web browser and navigate to http://<ip.of.your.instance>, you will see the default welcome page for nginx. Run the following commands to remove the default virtual host's symlink and restart the nginx service.
+
+``` command line instructions for removing the nginx default virtual host's symlink
+ $ sudo rm /etc/nginx/sites-enabled/default
+ $ sudo systemctl restart nginx
+```
+
+Now refresh the browser page pointed at your ip and you will get a connection error.
+
+Create a document root directory for your web content.
+
+``` command line instruction for creating a document root dir for your web content
+ $ sudo mkdir /usr/share/nginx/<www-root-dir-name>
+```
+
+<www-root-dir-name> can be whatever you like, so long as the config points to the right place later.
+
+Create a virtual host file for the website
+
+``` command line instruction for opening new virtual host file in a text editor
+ $ sudo vim /etc/nginx/sites-available/<www-root-dir-name>
+```
+
+Add the following contents to the virtual host file
+
+``` contents of the virtual host file for your website
+server {
+    listen 80 default_server;
+
+    root /usr/share/nginx/<www-root-dir-name>;
+    index index.html;
+
+    server_name <www-root-dir-name> www.<www-root-dir-name>;
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+Create a symlink to the sites-enabled directory
+
+``` command line instruction to create a symlink to your site configuration under the sites-enabled directory from the sites-available directory
+ $ sudo ln -s /etc/nginx/sites-available/<www-root-dir-name> /etc/nginx/sites-enabled/<www-root-dir-name>
+```
+
+Test that your configuration file syntax is okay
+
+``` command line instruction to test nginx config syntax
+ $ sudo nginx -t
+```
+
+Restart nginx
+
+``` command line instruction to restart the nginx service
+ $ sudo systemctl restart nginx
+```
+
+#### Add https
+
+Install certbot
+
+``` command line instruction to install certbot
+ $ sudo apt install certbot python3-certbot-nginx
+```
+
+Generate ssl cert
+
+```
+ $ sudo certbot --nginx -d brettgleason.xyz -d www.brettgleason.xyz
+```
+
+You will be asked to enter an email address, agree to the letsencrypt terms of service, and whether you want to allow your email to be shared with the EFF.
+
+Certbot will automatically update your nginx server config. Any line that was changed by certbot will be appended with "# managed by Certbot"
+
+# TODO: auto renewal
+
+=> https://creativecommons.org/licenses/by-nc-sa/4.0/    The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)

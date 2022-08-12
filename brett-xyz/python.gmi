@@ -1,0 +1,40 @@
+# Python Development Guidelines
+
+### Use pyenv to manage python versions
+
+=> https://github.com/pyenv/pyenv
+
+Pyenv is a tool that makes it very easy to manage multiple python versions without conflicting with your system python.
+
+### Use pyenv-virtualenv to create virtual environments
+
+=> https://github.com/pyenv/pyenv-virtualenv
+
+Pyenv-virtualenv is a pyenv plugin for creating virtual environments. Venvs can be created with any version of python installed by pyenv.
+
+Pyenv-virtualenv works similar to virtualenv: all virtual environments are created in a central directory. Once a venv has been created, the local environment is set to the venv with pyenv. If your shell has been configured per the instructions in the pyenv-virtualenv README, virtual environments will be automatically activated when you cd into the directory.
+
+### Prefer tools that can be configured within pyproject.toml
+
+Being able to see all project config in one file as opposed to flipping back and forth between multiple config files is quite nice. It becomes easy to make sure that overlapping config lines up, e.g. line length in auto-formatters vs. linters.
+
+### Set up auto-formatting and linting
+
+### Use type hints, at least for function arguments and return types
+
+As Guido van Rossum said,
+
+> Code is read much more often than it is written
+
+Explicitly communicating the types that your functions expect and return makes it much easier for someone reading the code to understand what your code is doing.
+
+### Tools I Like
+
+* pyenv - python version management
+* pyenv-virtualenv - virtual environment management
+* poetry - dependency management, packaging (for projects deployed as wheels). Also capable of venv management, though I don't use that part
+* black - automatic code formatting
+* mypy - type hint checking
+* flakeheaven - a flake8 wrapper that allows configuration in pyproject.toml
+
+TODO: flake8 plugins

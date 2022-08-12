@@ -1,5 +1,5 @@
-=> url   Things I'd like to do here
+=> vps_hosting_guide.gmi   A guide to hosting a gemini capsule on a VPS
 
-=> url   A guide to hosting a gemini capsule on a VPS
+=> cool_stuff.gmi   Cool shit on the internet
 
-=> url   Cool shit on the internet
+=> https://creativecommons.org/licenses/by-nc-sa/4.0/    The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)

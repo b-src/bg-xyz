@@ -5,3 +5,4 @@
 * maybe even trihost the capsule on the web and gopher
 * add instructions for bihosting and/or trihosting. perhaps create a tool to help people do the same
 
+=> https://creativecommons.org/licenses/by-nc-sa/4.0/    The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)

@@ -1,5 +1,11 @@
 # Cool Stuff
 
+=> gemini://gemini.circumlunar.space    The Gemini protocol
+=> https://gemini.circumlunar.space     The Gemini protocol on the web
+
+=> gemini://geminiquickst.art    An intro to Gemini
+=> https://geminiquickst.art     An intro to Gemini on the web
+
 => https://danluu.com   Dan Luu's blog. A very well written programming blog
 
 => https://wiki.xxiivv.com/site/home.html    Devine Lu Linvega's memex. An inspiration for this capsule
@@ -14,3 +20,5 @@
 => https://ziglang.org    The Zig programming language
 
 => https://git-scm.com/book/en/v2    Pro Git ebook. Git gud at git
+
+=> https://creativecommons.org/licenses/by-nc-sa/4.0/    The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
