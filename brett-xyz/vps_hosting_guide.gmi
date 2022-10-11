@@ -144,64 +144,197 @@ Instructions shown are for Ubuntu. Substitute the package manager commands for y
 To see what ports are listening you can use a tool like lsof
 
 ``` command line instruction for listing listening ports
- $ sudo lsof -i -P n | grep LISTEN
+ $ sudo lsof -i -P -n | grep LISTEN
 ```
 
-At this point you should see sshd on port 22 and systemd-resolve on port 53
-TODO: can systemd-resolve be turned off? Is this list different for different distros?
+At this point you should see sshd on port 22 and systemd-resolved on port 53. sshd is what allows you to ssh into your server. systemd-resolved handles outbound dns resolution. You will want to leave both of these enabled. If you see additional ports enabled you will want to investigate and disable them if they aren't needed.
 
 ### Configure firewall rules
+
+This section will show the commands to configure a firewall using iptables. A more detailed breakdown of iptables can be found here:
+
+=> iptables.gmi iptables
 
 iptables rules can be viewed by running
 
 ``` command line instruction to list iptables rules
- $ sudo iptables -L -v
+ $ sudo iptables -vnL --line-numbers
 ```
 
-Set firewall rule to allow traffic on port 22 (ssh)
+Set firewall rules to allow outbound DNS lookups (needed to allow package manager to function). These commands will need to be repeated for each DNS server you are using. See the iptables article linked above for help figuring out which servers you are using for DNS.
+
+``` command line instructions for configuring iptables rules to allow outbound DNS lookups
+ $ sudo iptables -A OUTPUT -p udp -d <dns.server.ip.address> --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+ $ sudo iptables -A OUTPUT -p tcp -d <dns.server.ip.address> --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+ $ sudo iptables -A INPUT -p udp -s <dns.server.ip.address> --sport 53 -m state --state ESTABLISHED -j ACCEPT
+ $ sudo iptables -A INPUT -p tcp -s <dns.server.ip.address> --sport 53 -m state --state ESTABLISHED -j ACCEPT
+```
+
+Set firewall rules to allow all localhost traffic
+
+```
+ $ sudo iptables -A INPUT -i lo -j ACCEPT
+ $ sudo iptables -A OUTPUT -o lo -j ACCEPT
+```
+
+Set firewall rules to allow http and https traffic to and from package repositories (needed to allow package manager to function). These commands will need to be repeated for each package repo you are using. Depending on the repo you may need to also enable FTP traffic on port 21. See the iptables article linked above for help figuring out which package repo servers you need to enable.
+
+``` command line instructions for configuring iptables rules to allow traffic to a package repo
+ $ sudo iptables -A OUTPUT -p tcp -d "<package.repo>" --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+ $ sudo iptables -A OUTPUT -p tcp -d "<package.repo>" --dport 443 -m state --state NEW,ESTABLISHED -j ACCEPT
+ $ sudo iptables -A INPUT -p tcp -s "<package.repo>" --sport 80 -m state --state ESTABLISHED -j ACCEPT
+ $ sudo iptables -A INPUT -p tcp -s "<package.repo>" --sport 443 -m state --state ESTABLISHED -j ACCEPT
+```
+
+Set firewall rules to allow ssh traffic (port 22)
 
 ``` command line instruction for configuring iptables rule to allow ssh traffic
  $ sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
-
+ $ sudo iptables -A OUTPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT
 ```
 
-Set firewall rule to allow traffic on port 80 (http)
+
+Set firewall rule to allow http traffic (port 80)
 
 ``` command line instruction for configuring iptables rule to allow https traffic
  $ sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+ $ sudo iptables -A OUTPUT -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
 
 ```
 
-Set firewall rule to allow traffic on port 443 (https)
+Set firewall rule to allow https traffic (port 443)
 
 ``` command line instruction for configuring iptables rule to allow https traffic
  $ sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+ $ sudo iptables -A OUTPUT -p tcp --sport 443 -m state --state ESTABLISHED -j ACCEPT
 
 ```
 
-Set firewall rule to allow traffic on gemini port
+Set firewall rule to allow gemini traffic (port 1965)
 
 ``` command line instruction for configuring iptables rule to allow gemini traffic
  $ sudo iptables -A INPUT -p tcp --dport 1965 -j ACCEPT
+ $ sudo iptables -A OUTPUT -p tcp --sport 1965 -m state --state ESTABLISHED -j ACCEPT
 
 ```
-Set firewall rule to drop all other traffic
+
+iptables -A OUTPUT -p udp -m udp --dport 53 -j ACCEPT
+Set firewall rules to drop all other traffic
 
 ``` command line instruction for configuring iptables rule to drop other traffic
  $ sudo iptables -A INPUT -j DROP
+ $ sudo iptables -A FORWARD -j DROP
+ $ sudo iptables -A OUTPUT -j DROP
 
 ```
 
 At this point list the iptables rules again with the following command.
 
 ``` command line instruction to list iptables rules
- $ sudo iptables -L -v
+ $ sudo iptables -vnL --line-numbers
 ```
 
-It's important that your rules for accepting traffic on ports comes above your rule to drop all other traffic.
+Save your iptables rules
 
+``` command line instruction to save iptables rules
+ $ sudo iptables-save > /etc/iptables/rules.v4
+```
+
+Enable automatic iptables rules loading on boot by installing the iptables-persistent package
+
+``` command line instruction to install iptables-persistent
+ # sudo apt-get install iptables-persistent
+```
 
 ## Deploying your Pages
+
+### Install your gemini server
+
+This process will look very different depending on the server you chose. The instructions in this section will be for agate.
+
+=> gemini://qwertqwefsday.eu/agate.gmi
+
+=> https://github.com/mbrubeck/agate
+
+Download the precompiled binary. If you are following the instructions on this page directly, make sure to replace the url in the command with the latest release. Note that if you have configured your firewall as shown above you will not be able to run this curl command directly from your vps. In that case you will want to download the agate binary locally and copy it to your server using scp.
+
+``` command line instruction for downloading a precompiled agate binary
+ $ curl -L https://github.com/mbrubeck/agate/releases/download/v3.2.4%2Bbuild/agate.x86_64-unknown-linux-gnu.gz -O
+```
+
+Extract the binary from the .gz archive
+
+``` command line instruction for extracting a .gz archive
+ $ gunzip agate.x86_64-unknown-linux-gnu.gz
+```
+
+Copy the binary to /usr/local/bin and make it executable by the TODO user
+TODO: fix permissions for the right user
+
+``` command line instructions for local installation of agate
+ $ sudo mkdir /usr/local/bin/agate
+ $ sudo cp agate.x86_64-unknown-linux-gnu /usr/local/bin/agate/agate
+ $ sudo chmod +x /usr/local/bin/agate/agate
+```
+
+### Deploy 
+
+Create a directory for your gemtext files
+
+``` command line instruction to make a directory for your gemtext files
+ $ sudo mkdir -p /usr/share/agate/root
+```
+
+From your local machine, copy your gemtext files to the server
+``` command line instruction to make a directory for your gemtext files
+ $ scp -r my/local/content/dir <user>@<my.instance.ip>:<user/home/dir>
+```
+
+From your instance, copy the gemtext files to the directory you created previously
+``` command line instruction to copy your gemtext files to the agate root directory
+ $ cp -r <usr/home/dir/content> /usr/share/agate/root
+```
+
+Run agate
+``` command line instruction to run the agate server
+ $ /usr/local/bin/agate/agate --content /usr/share/agate/root --addr 0.0.0.0:1965 --hostname <hostname> --lang en-US
+```
+
+At this point you should be able to open your favorite gemini browser and navigate to your site at gemini://<hostname>. Note that agate expects your home page to be called `index.gmi`
+
+If you can access your site, you know that the server is running and your firewall has been configured to allow gemini traffic. The next step is to create a systemd service for your server so that it will run automatically on server startup.
+
+Create the file /etc/systemd/system/agate.service and add the following contents to it:
+
+``` contents of the agate systemd service file
+[Unit]
+Description=Agate Gemini Server
+After=systemd-resolved.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=15
+user=<service user>
+ExecStart=/usr/local/bin/agate/agate --content /usr/share/agate/root --addr 0.0.0.0:1965 --hostname <hostname> --lang en-US
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Start the service with:
+
+``` command line instruction to start the gemini server service
+ $ sudo systemctl start agate
+```
+
+Set the service to start on boot:
+
+``` command line instruction to start the gemini server service
+ $ sudo systemctl enable agate
+```
+
 
 ### Install Nginx as a reverse proxy
 
@@ -286,6 +419,7 @@ You will be asked to enter an email address, agree to the letsencrypt terms of s
 
 Certbot will automatically update your nginx server config. Any line that was changed by certbot will be appended with "# managed by Certbot"
 
-# TODO: auto renewal
+Certbot will also handle certificate renewal. The command to generate the ssl certificate also adds a systemd timer that will run certbot twice a day. Normally no action is taken, but if your certificate is within 30 days of expiration, certbot will automatically renew your certificate.
+
 
 => https://creativecommons.org/licenses/by-nc-sa/4.0/    The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)

@@ -1,0 +1,373 @@
+# iptables
+
+iptables is one of several options for firewalls on linux. iptables is built on top of the Netfilter framework within the linux kernel. nftables is a newer alternative intended to replace iptables. There are several frontends available, popular options include firewalld and ufw.
+
+iptables rules apply ONLY to IPv4 traffic. ip6tables is the corresponding tool for managing IPv6 traffic. If you are relying only on the configuration in the following examples you should make sure IPv6 traffic is disabled for your server.
+
+=> https://netfilter.org/projects/nftables the nftables home page
+
+=> https://firewalld.org the firewalld home page
+
+=> https://launchpad.net/ufw the ufw project page
+
+### More complete references
+
+=> https://linux.die.net/man/8/iptables the iptables man page
+
+=> https://wiki.archlinux.org/title/iptables the iptables page on the arch linux wiki
+
+## Basics of iptables
+
+iptables operates on an individual packet basis. Rules for filtering and handling packets are combined into chains. There are three built-in chains: INPUT, FORWARD, and OUTPUT, covering inbound, forwarded, and outbound packets. It is also possible to define additional chains.
+
+Chains are made up of lists of rules. Each rule has a filter criteria, which determines if the packet matches the rule. Each rule also has a target, which specifies an action to be taken when a packet matches the filter criteria. Targets can be user defined chains, or they can be built-in values that specify actions to be taken for the packet: ACCEPT, DROP, QUEUE, or RETURN.
+
+iptables evaluates packets against each rule in the corresponding chain from top to bottom. Evaluation continues until the packet matches a rule's criteria and the rule's target is one of the built-in actions.
+
+The top-to-bottom evaluation means that a rule's position in the chain is important. Rules should be ordered from more specific to more general. In the examples below, the final rule on every chain is to drop all packets. Packets that have been explicitly allowed by previous rules will be accepted. Other packets will percolate all the way to the bottom of the chain and be dropped.
+
+It's best to make your rules as restrictive as possible and to drop everything that you have not explicitly allowed. Where possible, rules should be limited to specific IPs and specific packet connection tracking states.
+
+## Command Reference
+
+List existing rules. -v means verbose output. -L means list the rules. -n gives numeric (ip address) output rather than the default format which includes host names, network names, or service names. This avoids dns lookups that might be required by the default format. --line-numbers includes the rule numbers, which is nice to have if you're inserting rules into an existing chain.
+
+``` command line instruction for listing iptables rules
+ $ sudo iptables -vnL --line-numbers
+```
+
+Add a rule. -A meaning append the rule to the end of the chain. -p specifies the protocol used. <PROTOCOL> is either tcp, udp, icmp, or all. -s specifies the source ip address. --sport specifiec the source port. `-m state` says to match the connection tracking state of the packet, and --state specifies the state(s) to match on. States can be any of NEW, ESTABLISHED, RELATED, INVALED, SNAT, or DNAT. -j specifies the action taken for matching packets. The action can either be a builtin target (like ACCEPT or DROP), or a user defined chain.
+
+Outbound rules are very similar to inbound rules with slight differences. The OUTPUT chain is specified instead of the INPUT chain. instead of a source ip with -s, a destination ip can be specified with -d. Instead of a source port with --sport, a destination port is specified with --dport.
+
+These inbound and outbound rules are shown with source port/ip values for inbound commands and destination port/ip values for outbound commands. There are situations where your inbound rules may use destination port/ip values and your outbound rules may use sourc port/ip values.
+
+Inbound:
+``` command line instruction to add an inbound iptables rule
+ $ sudo iptables -A INBOUND -p <PROTOCOL> [-s <IP.ADDRESS>] --sport <PORT NUMBER> [-m state --state <comma,separated,state,list>] -j <ACTION>
+```
+
+Outbound
+``` command line instruction to add an inbound iptables rule
+ $ sudo iptables -A OUTPUT -p <PROTOCOL> [-d <IP.ADDRESS>] --dport <PORT NUMBER> [-m state --state <comma,separated,state,list>] -j <ACTION>
+```
+
+Insert a rule. Given an existing rule chain, you may want to insert your new rule within the existing chain instead of appending it. This is very similar to commands to append a rule, but the -I flag is used instead of -A and the line number is specified after the chain name.
+``` command line instruction to insert an iptables rule
+ $ sudo iptables -I <CHAIN-NAME> <LINE-NUMBER> [... (additional options are the same as for appending a rule)]
+```
+
+Drop a rule. -D means drop. <CHAIN-NAME> meaning one of INPUT/FORWARD/OUTPUT. <LINE NUMBER> meaning the line number shown when rules are listed with the --line-numbers option.
+
+``` command line instruction to drop an iptables rule
+ $ sudo iptables -D <CHAIN-NAME> <LINE NUMBER>
+```
+
+## VPS Firewall Configuration Example
+
+### A simple configuration
+
+Here is a basic firewall configuration for a vps that is hosting a website. This configuration is meant to:
+ * allow incoming ssh traffic (port 22)
+ * allow incoming http traffic (port 80)
+ * allow incoming https traffic (port 443)
+ * drop all other incoming packets
+
+``` command line instruction for a basic firewall configuration
+ $ sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+ $ sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+ $ sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+ $ sudo iptables -A INPUT -j DROP
+```
+
+Listing the rules at this point should show the following:
+
+``` iptables rules as configured by the previous command
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination
+1     3076  254K ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:22
+2      118  9806 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80
+3      209 18693 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:443
+4     1287 72717 DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0
+
+Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination
+
+Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination
+```
+
+This accomplishes our basic requirements, but there are some problems. For one, this does not allow incoming DNS traffic, so it will be impossible for the package manager to reach the package repositories. This means that it will be impossible to get security updates for the OS packages.
+
+### Allowing outbound DNS lookups
+
+DNS traffic is on port 53 by default. DNS traffic will need to be enabled on both the input and output chains - our server needs to be able to send requests to a DNS server as well as receive the response. DNS traffic can use either TCP or UDP, so we will need rules for both protocols. Best practice is also to limit the traffic to only the IPs of the DNS servers you are using. The end result is that we will need four rules for each DNS server we are using: inbound udp and tcp, and outbound udp and tcp.
+
+To find which DNS servers are currently configured, run:
+
+``` command line instruction to list the configured DNS servers
+ $ cat /etc/resolv.conf
+```
+
+If the listed ip address is a local ip (starting with '127.', probably '127.0.0.53') then your DNS resolution is being provided by the systemd.resolved service. To see which DNS servers systemd.resolved is using, run:
+
+``` command line instruction to list the DNS servers used by systemd.resolved
+ $ cat /run/systemd/resolve/resolv.conf
+```
+
+Add rules allowing outbound DNS lookups. The example command is using a google DNS server (8.8.8.8). This sequence of commands will need to be repeated for each DNS server in the relevant resolv.conf.
+
+``` command line instruction to allow traffic for outbound DNS lookups
+ $ sudo iptables -I OUTPUT 1 -p udp -d 8.8.8.8 --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+ $ sudo iptables -I OUTPUT 2 -p tcp -d 8.8.8.8 --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+ $ sudo iptables -I INPUT 1 -p udp -s 8.8.8.8 --sport 53 -m state --state ESTABLISHED -j ACCEPT
+ $ sudo iptables -I INPUT 2 -p tcp -s 8.8.8.8 --sport 53 -m state --state ESTABLISHED -j ACCEPT
+```
+
+In addition to limiting DNS traffic to the specific IP of our DNS servers, these rules also specify the allowed connection tracking states for the packets. The outbound rules allow both NEW and ESTABLISHED packets, allowing our server to make requests to the DNS server. The inbound rules only allow ESTABLISHED packets, meaning that the DNS traffic that's allowed into our server can ONLY come from requests made BY our server.
+
+Listing the rules at this point should show the following
+
+``` iptables rules after the previous set of commands
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1        0     0 ACCEPT     udp  --  *      *       8.8.8.8              0.0.0.0/0            udp spt:53 state ESTABLISHED
+2        0     0 ACCEPT     tcp  --  *      *       8.8.8.8              0.0.0.0/0            tcp spt:53 state ESTABLISHED
+3     4960  438K ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:22
+4      201 15581 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80
+5      364 34826 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:443
+6     2095  112K DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+
+Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+
+Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1        0     0 ACCEPT     udp  --  *      *       0.0.0.0/0            8.8.8.8              udp dpt:53 state NEW,ESTABLISHED
+2        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            8.8.8.8              tcp dpt:53 state NEW,ESTABLISHED
+```
+
+If your DNS lookup is NOT being handled by systemd.resolved (i.e. /etc/resolv.conf lists the DNS server(s) directly), this should be sufficient and your `nslookup` commands should now work. If you are using systemd.resolved, you need to also allow the traffic on your localhost (recall that the ip in resolve.conf in this case was 127.0.0.53).
+
+The following command will inable ALL inbound and outbound traffic on localhost. It's probably possible to restrict this to just the DNS traffic. As I understand it this permissive configuration should be fine in most circumstances.
+
+``` command line instruction to allow all inbound and outbound localhost traffic
+ $ sudo iptables -I INPUT 3 -i lo -j ACCEPT
+ $ sudo iptables -A OUTPUT -o lo -j ACCEPT
+```
+
+Listing the rules should now show the following:
+
+``` iptables rules after the previous set of commands
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination
+1        4   684 ACCEPT     udp  --  *      *       8.8.8.8              0.0.0.0/0            udp spt:53 state ESTABLISHED
+2        0     0 ACCEPT     tcp  --  *      *       8.8.8.8              0.0.0.0/0            tcp spt:53 state ESTABLISHED
+3        6   622 ACCEPT     all  --  lo     *       0.0.0.0/0            0.0.0.0/0
+4     6827  600K ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:22
+5      203 15661 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80
+6      445 44069 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:443
+7     2323  123K DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0
+
+Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination
+
+Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination
+1        6   402 ACCEPT     udp  --  *      *       0.0.0.0/0            8.8.8.8              udp dpt:53 state NEW,ESTABLISHED
+2        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            8.8.8.8              tcp dpt:53 state NEW,ESTABLISHED
+3        6   622 ACCEPT     all  --  *      lo      0.0.0.0/0            0.0.0.0/0
+```
+
+At this point outbound DNS lookups should be fully functional. Test it out with nslookup:
+
+``` command line instruction to perform a DNS lookup on google.com
+ $ nslookup google.com
+```
+
+DNS lookup is just part of what's required to allow the package manager to function. At this point we can resolve the hosts for the package repositories, but we can't actually download anything.
+
+### Allowing traffic to and from the package repositories
+
+The next step is figuring out the hostnames of your various package servers. This process will be different depending on which package manager you're using. For debian based distributions using apt, the package servers will be listed in /etc/apt/sources.list, and potentially additional list files under /etc/apt/sources.list.d/. To show the package servers and their IPs, run:
+
+``` command line instruction to list package repo servers
+ $ cat /etc/apt/sources.list
+
+ $ cat /etc/apt/sources.list.d/<listfile-name>
+```
+
+There are potentially 3 types of traffic you will need to allow depending on what is used by the individual package repos:
+ * http
+ * https
+ * ftp
+
+You will need to allow both inbound and outbound traffic for each type. Only TCP is needed for any of these three types of traffic. This means that there will be two rules needed per type of traffic for each package repo.
+
+These rules will follow the same convention as the DNS rules - outbound traffic will be allowed for packets with both NEW and ESTABLISHED states, while inbound traffic will be restricted to only packets with the ESTABLISHED state.
+
+Here are the commands to add rules allowing http and https traffic for a package repo:
+
+``` command line instruction to allow inbound and outbound http and https traffic to a package repo
+ $ sudo iptables -A OUTPUT -p tcp -d "security.ubuntu.com" --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+ $ sudo iptables -I INPUT -4 -p tcp -s "security.ubuntu.com" --sport 80 -m state --state ESTABLISHED -j ACCEPT
+ $ sudo iptables -A OUTPUT -p tcp -d "security.ubuntu.com" --dport 443 -m state --state NEW,ESTABLISHED -j ACCEPT
+ $ sudo iptables -I INPUT -5 -p tcp -s "security.ubuntu.com" --sport 443 -m state --state ESTABLISHED -j ACCEPT
+```
+
+This set of commands will need to be repeated for each package repo hostname needed by your package manager. If FTP traffic is needed, add another set of input/output rules for port 21.
+
+Here's the list of rules through this point:
+
+``` iptables rules after allowing package repo traffic
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1       76 12012 ACCEPT     udp  --  *      *       8.8.8.8              0.0.0.0/0            udp spt:53 state ESTABLISHED
+2        0     0 ACCEPT     tcp  --  *      *       8.8.8.8              0.0.0.0/0            tcp spt:53 state ESTABLISHED
+3      122 13921 ACCEPT     all  --  lo     *       0.0.0.0/0            0.0.0.0/0           
+4        0     0 ACCEPT     tcp  --  *      *       185.125.190.39       0.0.0.0/0            tcp spt:80 state ESTABLISHED
+5       28  112K ACCEPT     tcp  --  *      *       91.189.91.38         0.0.0.0/0            tcp spt:80 state ESTABLISHED
+6        0     0 ACCEPT     tcp  --  *      *       91.189.91.39         0.0.0.0/0            tcp spt:80 state ESTABLISHED
+7        0     0 ACCEPT     tcp  --  *      *       185.125.190.36       0.0.0.0/0            tcp spt:80 state ESTABLISHED
+8        0     0 ACCEPT     tcp  --  *      *       91.189.91.38         0.0.0.0/0            tcp spt:443 state ESTABLISHED
+9        0     0 ACCEPT     tcp  --  *      *       185.125.190.36       0.0.0.0/0            tcp spt:443 state ESTABLISHED
+10       0     0 ACCEPT     tcp  --  *      *       185.125.190.39       0.0.0.0/0            tcp spt:443 state ESTABLISHED
+11       0     0 ACCEPT     tcp  --  *      *       91.189.91.39         0.0.0.0/0            tcp spt:443 state ESTABLISHED
+12    5692  446K ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:22
+13      33  1914 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80
+14      96  9469 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:443
+15     393 21227 DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+
+Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+
+Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1      104  8480 ACCEPT     udp  --  *      *       0.0.0.0/0            8.8.8.8              udp dpt:53 state NEW,ESTABLISHED
+2        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            8.8.8.8              tcp dpt:53 state NEW,ESTABLISHED
+3      122 13921 ACCEPT     all  --  *      lo      0.0.0.0/0            0.0.0.0/0           
+4        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            91.189.91.39         tcp dpt:80 state NEW,ESTABLISHED
+5        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            185.125.190.39       tcp dpt:80 state NEW,ESTABLISHED
+6       30  1799 ACCEPT     tcp  --  *      *       0.0.0.0/0            91.189.91.38         tcp dpt:80 state NEW,ESTABLISHED
+7        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            185.125.190.36       tcp dpt:80 state NEW,ESTABLISHED
+8        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            91.189.91.39         tcp dpt:443 state NEW,ESTABLISHED
+9        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            185.125.190.39       tcp dpt:443 state NEW,ESTABLISHED
+10       0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            91.189.91.38         tcp dpt:443 state NEW,ESTABLISHED
+11       0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            185.125.190.36       tcp dpt:443 state NEW,ESTABLISHED
+```
+
+This shows more rules than we might expect based on the last set of commands. This is because security.ubuntu.com has multiple mirrors. running `$ nslookup security.ubuntu.com` returns 4 different IP addresses. When we add the rule for the hostname, it is automatically expanded into one rule per IP.
+
+At this point your package manager should function correctly.
+
+### Drop all outgoing traffic that isn't explicitly allowed
+
+Up to this point, the OUTPUT rules we've added have not actually been necessary. An empty output chain allows all outbound traffic. It has just been the rule at the end of the INPUT chain that drops all inbound traffic that wasn't already explicitly allowed that was breaking DNS lookups and package updates.
+
+Best practice would be to apply a similar rule at the end of the OUTPUT chain to drop all traffic we haven't explicitly allowed. We will have to be careful about how we do this so that we don't lock ourselves out by blocking outbound ssh, or bring down our site by blocking outbound http/https.
+
+First we want to allow outbound ssh traffic. This command will only allow outbound ssh traffic for established connections. This means we will be able to ssh into our server, but we will not be able to ssh anywhere else from our server.
+
+``` command line instruction to allow outbound ssh traffic
+ $ sudo iptables -A OUTPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT
+```
+
+Next, we will allow outbound http and https traffic to match our input rules.
+
+``` command line instruction to allow outbound http and https traffic
+ $ sudo iptables -A OUTPUT -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+ $ sudo iptables -A OUTPUT -p tcp --sport 443 -m state --state ESTABLISHED -j ACCEPT
+```
+
+Finally, we will add the rule to drop all other outgong traffic.
+
+``` command line instruction to drop all outgoing traffic
+ $ sudo iptables -A OUTPUT -j DROP
+```
+
+If your ssh connection is still functional that's a good sign! The chains are getting pretty large now, we'll save the total list for the end.
+
+### Drop all forwarded traffic
+
+Since we aren't using the FORWARD chain, we'll go ahead and add a rule to drop all forwarded packets as a precaution.
+
+``` command line instruction to drop all forwarded traffic
+ $ sudo iptables -A FORWARD -j DROP
+```
+
+### Final configuration
+
+At this point we have a complete firewall configuration. Expected traffic is explicitly allowed, and all traffic that hasn't been explicitly allowed is dropped. We are able to connect to our server with ssh, the server is able to serve http/https requests (from a network traffic perspective at least!), the server can perform outbound DNS lookups, and the server can send and receive traffic to its package repos.
+
+Here is what the final configuration looks like:
+
+``` the total list of iptables rules that we have configured
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1       88 13804 ACCEPT     udp  --  *      *       8.8.8.8              0.0.0.0/0            udp spt:53 state ESTABLISHED
+2        0     0 ACCEPT     tcp  --  *      *       8.8.8.8              0.0.0.0/0            tcp spt:53 state ESTABLISHED
+3      140 15811 ACCEPT     all  --  lo     *       0.0.0.0/0            0.0.0.0/0           
+4        0     0 ACCEPT     tcp  --  *      *       185.125.190.39       0.0.0.0/0            tcp spt:80 state ESTABLISHED
+5       28  112K ACCEPT     tcp  --  *      *       91.189.91.38         0.0.0.0/0            tcp spt:80 state ESTABLISHED
+6        0     0 ACCEPT     tcp  --  *      *       91.189.91.39         0.0.0.0/0            tcp spt:80 state ESTABLISHED
+7        0     0 ACCEPT     tcp  --  *      *       185.125.190.36       0.0.0.0/0            tcp spt:80 state ESTABLISHED
+8        0     0 ACCEPT     tcp  --  *      *       91.189.91.38         0.0.0.0/0            tcp spt:443 state ESTABLISHED
+9        0     0 ACCEPT     tcp  --  *      *       185.125.190.36       0.0.0.0/0            tcp spt:443 state ESTABLISHED
+10       0     0 ACCEPT     tcp  --  *      *       185.125.190.39       0.0.0.0/0            tcp spt:443 state ESTABLISHED
+11       0     0 ACCEPT     tcp  --  *      *       91.189.91.39         0.0.0.0/0            tcp spt:443 state ESTABLISHED
+12    6510  511K ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:22
+13      87  6026 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80
+14     200 17884 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:443
+15     887 45796 DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+
+Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1        0     0 DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+
+Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1      116  9416 ACCEPT     udp  --  *      *       0.0.0.0/0            8.8.8.8              udp dpt:53 state NEW,ESTABLISHED
+2        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            8.8.8.8              tcp dpt:53 state NEW,ESTABLISHED
+3      140 15811 ACCEPT     all  --  *      lo      0.0.0.0/0            0.0.0.0/0           
+4        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            91.189.91.39         tcp dpt:80 state NEW,ESTABLISHED
+5        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            185.125.190.39       tcp dpt:80 state NEW,ESTABLISHED
+6       30  1799 ACCEPT     tcp  --  *      *       0.0.0.0/0            91.189.91.38         tcp dpt:80 state NEW,ESTABLISHED
+7        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            185.125.190.36       tcp dpt:80 state NEW,ESTABLISHED
+8        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            91.189.91.39         tcp dpt:443 state NEW,ESTABLISHED
+9        0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            185.125.190.39       tcp dpt:443 state NEW,ESTABLISHED
+10       0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            91.189.91.38         tcp dpt:443 state NEW,ESTABLISHED
+11       0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            185.125.190.36       tcp dpt:443 state NEW,ESTABLISHED
+12     306 68732 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp spt:22 state ESTABLISHED
+13       6   630 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp spt:80 state ESTABLISHED
+14      67 34746 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp spt:443 state ESTABLISHED
+15       8   480 DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0      
+```
+
+### Save your iptables configuration and enable automatic rules loading
+
+At this point the iptables configuration is just held in memory. If the instance is restarted, the firewall rules will be cleared. You definitely don't want your firewall to disappear on a reboot. The configuration can be saved with the following command:
+
+``` command line instruction to save iptables configuration
+ $ sudo iptables-save > /etc/iptables/rules.v4
+```
+
+Install the iptables-persistent package to enable automatic rules loading
+
+``` command line instruction to install iptables-persistent
+ $ sudo apt-get install iptables-persistent
+```
+
+iptables-persistent will automatically load iptables rules on boot as long as they are saved to /etc/iptables/rules.v4. ip6tables rules will also be automatically loaded on boot as long as they are saved to /etc/iptables/rules.v6
+
+
+### Potential improvements
+
+The configuration above is a good baseline, but it could be better. Our original rules to allow inbound ssh, http, and https could be more restrictive. It's probably best to restrict those packets to only those with a NEW or ESTABLISHED state.
+
+Our inbound ssh rule allows ssh connections from anywhere. Restricting ssh traffic to only IP addresses that we will be using to connect to the server would provide a huge boost in security. This is tricky if you don't have a static IP assigned from your ISP.
+
+There may be additional types of traffic you want to allow, for example using NTP to sync your system time with a remote server.
+
+The existing configuration just drops packets that aren't explicitly allowed. You may prefer to first log this traffic, then drop it. Having these logs might give you additional information about who is trying to break into your server, or if you've blocked traffic to a service that your server needs.
+
+=> https://creativecommons.org/licenses/by-nc-sa/4.0/ The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
