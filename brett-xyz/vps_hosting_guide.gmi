@@ -1,6 +1,6 @@
 # A Guide to Hosting a Gemini Capsule on a VPS
 
-While this guide is meant to be as beginner friendly as possible, it is important to note up front that there are inherent risks and responsibilities associated with running and maintaining a server that is connected to the internet. I've done my best to provide guidance on best practices for security, but this is limited by my own knowledge and I am far from an expert. I welcome corrections and additional advice.
+While this guide is meant to be as beginner friendly as possible, it is important to note up front that there are inherent risks and responsibilities associated with running and maintaining a server that is connected to the internet. I've done my best to provide guidance on best practices for security, but this is limited by my own knowledge and I am not an expert. I welcome corrections and additional advice.
 
 ## What is a VPS?
 
@@ -24,6 +24,8 @@ I like DigitalOcean. They have a nice interface, they have instances starting at
 
 => https://cloud.google.com GCP (Google Cloud Platform. Could be shuttered at any moment if google gets bored)
 
+=> https://vultr.com Vultr
+
 ## Choosing an Operating System
 
 Your VPS provider likely has many OS images available. Important considerations are:
@@ -37,7 +39,20 @@ Major linux distros are probably all fine choices.
 
 ## Registering a domain name
 
-TODO
+You will need to purchase a domain name through a domain name registar. There will be an initial registration cost and a yearly renewal cost. Your registrar should offer privacy protection, which you will want. Part of the domain name registration includes making contact information for the domain owner public. Choosing the privacy protection will list proxy contact information instead of your personal contact information.
+
+You can use the ICANN lookup tool to see what kind of information is available for any domain
+
+=> https://lookup.icann.org/en
+
+A command line whois tool is also included with many linux distributions, which is another way to look up this information
+
+
+### Some domain name registrars
+
+=> https://www.namecheap.com Namecheap
+
+=> https://domains.google.com Google
 
 ## Creating an SSH key
 
@@ -194,7 +209,7 @@ Set firewall rules to allow ssh traffic (port 22)
 ```
 
 
-Set firewall rule to allow http traffic (port 80)
+If you also plan to host a website on your instance, set firewall rule to allow http traffic (port 80)
 
 ``` command line instruction for configuring iptables rule to allow https traffic
  $ sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
@@ -202,7 +217,7 @@ Set firewall rule to allow http traffic (port 80)
 
 ```
 
-Set firewall rule to allow https traffic (port 443)
+If you also plan to host a website on your instance, set firewall rule to allow https traffic (port 443)
 
 ``` command line instruction for configuring iptables rule to allow https traffic
  $ sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
@@ -243,8 +258,207 @@ Save your iptables rules
 Enable automatic iptables rules loading on boot by installing the iptables-persistent package
 
 ``` command line instruction to install iptables-persistent
- # sudo apt-get install iptables-persistent
+ $ sudo apt-get install iptables-persistent
 ```
+
+### Guard against unauthorized ssh logins with Fail2Ban
+
+Fail2Ban will scan log files and temporarily ban IPs that attempt and fail to log in to your server. Fail2Ban works by configuring "jails" for individual applications. Each jail defines the relevant log file to monitor and port for the application's traffic. We will just be configuring an ssh jail, but fail2ban is capable of monitoring nearly any type of login request that has parseable logs. Documentation can be found here:
+
+=> https://www.fail2ban.org/wiki/index.php/Main_Page
+
+Install Fail2Ban:
+
+``` command line instruction to install fail2ban
+ $ sudo apt-get install fail2ban
+```
+
+Unlike other packages we've installed, Fail2Ban is not enabled by default. We will enable it after setting up our config.
+
+Fail2Ban reads its config from multiple files in the /etc/fail2ban/ directory. It first reads the settings from *.conf files, then those are overridden by settings in *.local files. General configuration settings are kept in fail2ban.conf, which we won't be touching. The jail.conf file contains settings related to ban parameters and specific services, which is what we will be changing.
+
+Make a copy of the default jail configuration file:
+
+``` command line instruction to copy the default fail2ban configuration file
+ $ sudo cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+```
+
+Edit the jail config file
+
+``` command line instruction to edit the fail2ban configuration
+ $ sudo vim /etc/fail2ban/jail.local
+```
+
+There will be a lot of values that are commented out. You should edit the configuration so that the following lines are enabled.  Any configuration not listed should be commented out - with the exception of everything under the JAILS section. Jails are disabled by default and each jail must be individually enabled by adding `enabled = true` to its config.
+
+Some config values span multiple lines, if you comment them out take care to comment out each line or fail2ban will fail to start later.
+
+``` a reasonable default fail2ban configuration
+[INCLUDES]
+before = paths.debian.conf
+
+[DEFAULT]
+bantime = 2w 
+findtime = 1d
+maxretry = 4
+
+maxmatches = %(maxretry)s
+backend = auto
+
+usedns = warn
+
+logencoding = auto
+
+enabled = false
+
+mode = normal
+filter = %(__name__)s[mode=%(mode)s]
+
+protocol = tcp
+
+chain = <known/chain>
+
+port = 0:65535
+
+fail2ban_agent = Fail2Ban/%(fail2ban_version)s
+
+banaction = iptables-multiport
+banaction_allports = iptables-allports
+action_ = %(banaction)s[port="%(port)s", protocol="%(protocol)s", chain="%(chain)s"]
+
+[sshd]
+enabled = true
+mode = aggressive
+port = ssh
+logpath = %(sshd_log)s
+backend = %(sshd_backend)s
+```
+
+`before = paths.debian.conf` in the INCLUDES section tells fail2ban to include the paths.debian.conf file in this configuration. This file contains definitions of locations for various resources on a debian-based system. If you are using a different distribution you will want to replace this value with the appropriate paths.* file in /etc/fail2ban.
+
+`bantime` is the duration of the ban that is applied. The default unit is seconds, but it's also possible to specify minutes with `m`, hours with `h`, days with `d`, weeks with `w`, months with `mon`, or years with `y`.
+
+`findtime` and `maxretry` work in concert. maxretry defines the maximum number of failed attempts before a ban, while findtime defines the window in which those attempts have to occur. The configuration above will ban an ip with 4 failed attempts within 24 hours for two weeks. The default findtime is 10 minutes. Looking through my own ssh auth logs (/var/log/auth.log) I noticed that several IPs were spacing out their attempts more widely, sometimes every six hours or so.
+
+`maxmatches` defines the number of log lines that are held in memory per ticket, which defaults to the same value as maxretry
+
+`backend` specifies which tool will be used to monitor the logs. auto is fine for debian based systems, but other distributions may have to specify a backend.
+
+`usedns` tells fail2ban what to do for log lines that include a hostname instead of an ip. warn will resolve hostnames to ips and log a warning in the log. Setting this to no will disable dns resolution for fail2ban, which means that attempts where a hostname is logged instead of an ip will never result in a ban.
+
+`logencoding` specifies the encoding for parsing logs. auto uses the system locale.
+
+`enabled = false` in the DEFAULT section disables all the jails. Setting this to true enables all the jails, which we don't want. This should remain set to false, with individual jails enabled below.
+
+`mode` and `filter` also work together. Filters are what read the log files for the applications that fail2ban is monitoring. By default filter names correspond to jail names. If you are only monitoring ssh it's likely you want to leave the default settings here
+
+`protocol` lists the default network protocol.
+
+`chain` lists the firewall chain where bans are implemented. This will be overridden by your action config. More on this later.
+
+`port` sets the default ports to monitor. It's fine to leave this as all ports here, this will be overridden at the individual jail level.
+
+`fail2ban_agent` sets the default format of the user-agent for requests. It's fine to leave this as the default value.
+
+`banaction`, `banaction-allports`, and `action_` define the default actions to take for a ban. The default configuration uses iptables, but it's also possible to configure this to use nftables or ufw.
+
+The [sshd] section defines the configuration for the ssh jail. Settings here override the default settings for this jail.
+
+`enabled = true` is needed to enable the jail.
+
+`mode = aggressive` takes a more aggressive stance by combining the normal and ddos ssh options.
+
+`port` sets the port for this jail.
+
+`logpath` is the path to the ssh auth log.
+
+`backend` is the tool that will be used to monitor the ssh auth log.
+
+Our configuration sets the default banaction to `iptables-multiport`. Let's take a quick look at the definition for this action under /etc/fail2ban/action.d/iptables-multiport.conf
+
+``` command line instruction to print the contents of the iptables-multiport.conf action config
+ $ cat /etc/fail2ban/action.d/iptables-multiport.conf
+```
+
+Notice the `actionstart` configuration
+
+``` partial contents of /etc/fail2ban/action.d/iptables-multiport.conf
+actionstart = <iptables> -N f2b-<name>
+              <iptables> -A f2b-<name> -j <returntype>
+              <iptables> -I <chain> -p <protocol> -m multiport --dports <port> -j f2b-<name>
+```
+
+This says that when iptables is started, for each jail a new chain called `f2b-<name>` will be created. The final rule of that chain will be to return to the calling chain, and a rule will be inserted at the top of the INPUT chain (really the chain specified in the default jail.local config) to first route all traffic for the relevant port for the jail through the newly created chain.
+
+The `actionban` config is also important
+
+``` partial contents of /etc/fail2ban/action.d/iptables-multiport.conf
+actionban = <iptables> -I f2b-<name> 1 -s <ip> -j <blocktype>
+```
+
+This says that when an IP is banned, a rule will be inserted at the top of the `f2b-<name>` chain that rejects the traffic.
+
+Finally, activate the service
+
+``` command line instruction to activate the fail2ban service
+ $ sudo systemctl enable fail2ban
+ $ sudo systemctl start fail2ban
+```
+
+List your iptables rules once more. You should see a rule at the top of the input chain that sends all traffic from port 22 to the f2b-sshd chain. The f2b-sshd chain will be newly added to the bottom of the output, and it likely already has some entries.
+
+## Set up your DNS records
+
+Before you deploy your pages you'll want to configure your DNS records. DNS stands for Domain Name System, and its purpose is to provide the linkage between domain names and their ip addresses. If you skip to the Deploying section, you will only be able to access your capsule by your server's ip address and not your domain name.
+
+There are a lot of steps in a DNS lookup, but for our purposes we just need to publish the linkage between our domain name and the IP of our VPS. Your domain name registrar will have a page where you can manage your domain's DNS records.
+
+### DNS record types
+
+A DNS record has a type that establishes its purpose. The possible types you might use are:
+
+ * A - maps a domain name to an IPv4 address
+ * AAAA - maps a domain name to an IPv6 address
+ * CNAME - maps a domain name to another domain name. Used for redirecting to another domain or subdomain
+ * NS - specifies the authoritative nameserver for a domain. Used if you want to manage your DNS records outside of your domain registrar
+ * MX - mail exchange, specifies an email server for mail sent to the domain
+ * TXT - text record. Most often used in concert with MX records
+ 
+Additional record types you are unlikely to need:
+
+ * PTR - the opposite of A/AAAA records. Used in reverse DNS lookups to verify the IP address matches the domain name for e.g. making sure an email isn't being sent from a spoofed domain
+ * SOA - start of authority. Gives information about the domain
+ * SPF - sender policy framework. Deprecated
+ * SRV - service. Specifies the port that should be used for a specific service
+
+### Set up an A record or two
+
+If you're only hosting a gemini capsule you will only need one A record. 'tld' in the hostname means top level domain (.com, .org, etc)
+
+``` A DNS A record
+TYPE                HOSTNAME                VALUE                TTL
+A                   <hostname.tld>          <vps.ip.address>     3600
+```
+
+If you plan to also host a website, you will want a second record with your hostname prepended with www
+
+``` A second DNS A record
+TYPE                HOSTNAME                VALUE                TTL
+A                   <www.hostname.tld>      <vps.ip.address>     3600
+```
+
+This should be all you need for your capsule to be accessable once you do your deployment.
+
+### Optional - manage your DNS records with your VPS provider
+
+You may wish to manage your DNS records with your VPS provider instead of your domain registrar. To do this you will need to add NS records that point to your VPS provider's nameservers:
+
+``` A DNS NS record
+TYPE                HOSTNAME                VALUE                TTL
+NS                  <hostname.tld>          <name.server.tld>    1800
+```
+
+If there are multiple nameservers you will need a record for each one
 
 ## Deploying your Pages
 
@@ -268,8 +482,7 @@ Extract the binary from the .gz archive
  $ gunzip agate.x86_64-unknown-linux-gnu.gz
 ```
 
-Copy the binary to /usr/local/bin and make it executable by the TODO user
-TODO: fix permissions for the right user
+Copy the binary to /usr/local/bin
 
 ``` command line instructions for local installation of agate
  $ sudo mkdir /usr/local/bin/agate
@@ -277,7 +490,7 @@ TODO: fix permissions for the right user
  $ sudo chmod +x /usr/local/bin/agate/agate
 ```
 
-### Deploy 
+### Initial Deployment
 
 Create a directory for your gemtext files
 
@@ -302,7 +515,37 @@ Run agate
 
 At this point you should be able to open your favorite gemini browser and navigate to your site at gemini://<hostname>. Note that agate expects your home page to be called `index.gmi`
 
-If you can access your site, you know that the server is running and your firewall has been configured to allow gemini traffic. The next step is to create a systemd service for your server so that it will run automatically on server startup.
+If you can access your site, you know that the server is running and your firewall has been configured to allow gemini traffic.
+
+### Improved Deployment
+
+We should really add a service user to run our server, and not use our login user. Since our login user has sudo permissions, if somebody is able to break into our VPS through a vulnerability in our gemini server, they would also have sudo permissions. Let's create a user without those permissions whose account can't even be logged into. Replace <service user> with the username.
+
+``` command line instruction to create a service user
+ $ sudo useradd -m -s /sbin/nologin <service user>
+```
+
+This command will create a user with a home directory (-m) with their login shell (-s) set to /sbin/nologin. In general it's best to create service accounts without home directories, but we will need one with agate.
+
+Next we will create a self-signed TLS certificate. Agate will create one for us by default, so it's possible to skip this part. Agate requires an ECDSA cert
+
+``` command line instruction to create a self-signed TLS certificate
+ $ openssl ecparam -name prime256v1 -genkey -outform DER -out key.der
+ $ openssl req -new -x509 -key key.der -inform DER -outform DER -out cert.der -days 3650 -addext "subjectAltName = DNS:<hostname.tld>"
+```
+
+These commands create a new key file and certificate using the DER format (an agate requirement) that expires in 10 years. Don't forget to set a calendar reminder. Adding the subject alternative name is a requirement of agate. You will be prompted for some additional info. Enter <hostname.tld> when prompted for the Common Name.
+
+Make a directory under your service user's home dir for the certificate/key and move them there. Since you created the key as your login user, you will need to change the owner of the files to the service user. Skip this part if you are relying on agate to create the certificate
+
+``` command line instruction to create a new directory for your cert/key, move them, and change the owner
+ $ sudo mkdir /home/<service user>/.certificates/<hostname.tld>
+ $ sudo mv cert.der /home/<service user>/.certificates/<hostname.tld>/
+ $ sudo mv key.der /home/<service user>/.certificates/<hostname.tld>/
+ $ sudo chown -R <service user>:<service user> /home/<service user>/.certificates
+```
+
+The next step is to create a systemd service for your server so that it will run automatically on server startup.
 
 Create the file /etc/systemd/system/agate.service and add the following contents to it:
 
@@ -317,7 +560,7 @@ Type=simple
 Restart=always
 RestartSec=15
 user=<service user>
-ExecStart=/usr/local/bin/agate/agate --content /usr/share/agate/root --addr 0.0.0.0:1965 --hostname <hostname> --lang en-US
+ExecStart=/usr/local/bin/agate/agate --certs /home/<service user>/.certificates --content /usr/share/agate/root --addr 0.0.0.0:1965 --hostname <hostname> --lang en-US
 
 [Install]
 WantedBy=multi-user.target
@@ -335,14 +578,17 @@ Set the service to start on boot:
  $ sudo systemctl enable agate
 ```
 
+At this point your capsule should be accessible! There are some additional steps you should take to improve security.
 
-### Install Nginx as a reverse proxy
+## Install Nginx as a reverse proxy
+
+Your capsule is now accessible, but your server software is exposed directly to the traffic coming in at port 1965. If there is a vulnerability in your gemini server software, someone could use that to gain control of your VPS. To fix this, we will set up nginx to listen on port 1965 and forward the traffic to our gemini server instead of exposing our server directly.
 
 ``` command line instruction for installing nginx
  $ sudo apt install nginx
 ```
 
-If you run the lsof command to list open ports, you should now see entries for port 80 for nginx.
+If you run the lsof command to list open ports, you should now see entries for port 80 for nginx. Instructions will be provided later for turning this off if you dont plan to also host a website. For now it's a good test that nginx is working properly.
 
 If you open a web browser and navigate to http://<ip.of.your.instance>, you will see the default welcome page for nginx. Run the following commands to remove the default virtual host's symlink and restart the nginx service.
 
@@ -353,6 +599,59 @@ If you open a web browser and navigate to http://<ip.of.your.instance>, you will
 
 Now refresh the browser page pointed at your ip and you will get a connection error.
 
+The top level nginx config file is located at /etc/nginx/nginx.conf. Open this file in a text editor and you should see an `events` and an `http` section delimited by curly braces. 
+
+To set up nginx as a reverse proxy for our gemini server, add a `stream` section between the events and http sections with the following contents:
+
+``` configuration for an nginx stream block to reverse proxy gemini traffic
+stream {
+
+    map $ssl_preread_server_name $upstream {
+        "<hostname.tld>" 127.0.0.1:11965;
+    }
+
+    server {
+        listen 1965;
+        ssl_preread on;
+        proxy_pass $upstream;
+    }
+}
+```
+
+Test that your configuration file syntax is okay
+
+``` command line instruction to test nginx config syntax
+ $ sudo nginx -t -c
+```
+
+This configures nginx in a passthrough configuration. The ssl_preread setting tells nginx to extract information from the ClientHello message without terminating TLS. The Gemini protocol mandates the use of the SNI (Server Name Indication) extension of TLS. The map section tells nginx which port to route traffic to for the server name given by SNI. You can run multiple gemini capsules on your VPS by adding additional entries in this section mapping hostnames to the correct ports for their traffic.
+
+Right now nginx won't be able to start because our agate service is already listening on port 1965. We need to stop that, then restart nginx:
+
+``` command line instructions to stop agate and restart nginx
+ $ sudo systemctl stop agate
+ $ sudo systemctl restart nginx
+```
+
+Now we need to update our agate service file to listen on the port we set in our nginx config. Edit /etc/systemd/system/agate.service once more and change the ExecStart line to:
+
+``` an updated systemd service configuration to run agate behind a reverse proxy
+ExecStart=/usr/local/bin/agate/agate --certs /home/<service user>/.certificates --content /usr/share/agate/root --addr 127.0.0.1:11965 --hostname <hostname> --lang en-US
+```
+
+Reload the systemd unit files and start agate:
+
+```
+ $ sudo systemctl daemon-reload
+ $ sudo systemctl start agate
+```
+
+Your capsule should be accessible once again, this time from behind a reverse proxy.
+
+## Hosting a website
+
+In addition to proxying your gemini server, nginx can also be used as a web server. If you take another look at the http section in the top level nginx config (/etc/nginx/nginx.conf) you will see a Virtual Host Configs section with the line `include /etc/nginx/sites-enabled/*;` Similar to the way the map section in our stream config allowed us to have multiple virtual gemini hosts, this allows us to have multiple virtual web hosts with their own separate config files.
+
 Create a document root directory for your web content.
 
 ``` command line instruction for creating a document root dir for your web content
@@ -361,7 +660,7 @@ Create a document root directory for your web content.
 
 <www-root-dir-name> can be whatever you like, so long as the config points to the right place later.
 
-Create a virtual host file for the website
+Create a virtual host config file for the website
 
 ``` command line instruction for opening new virtual host file in a text editor
  $ sudo vim /etc/nginx/sites-available/<www-root-dir-name>
@@ -392,7 +691,7 @@ Create a symlink to the sites-enabled directory
 Test that your configuration file syntax is okay
 
 ``` command line instruction to test nginx config syntax
- $ sudo nginx -t
+ $ sudo nginx -t -c
 ```
 
 Restart nginx
@@ -401,7 +700,7 @@ Restart nginx
  $ sudo systemctl restart nginx
 ```
 
-#### Add https
+### Add https
 
 Install certbot
 
@@ -412,7 +711,7 @@ Install certbot
 Generate ssl cert
 
 ```
- $ sudo certbot --nginx -d brettgleason.xyz -d www.brettgleason.xyz
+ $ sudo certbot --nginx -d <hostname.tld> -d <www.hostname.tld>
 ```
 
 You will be asked to enter an email address, agree to the letsencrypt terms of service, and whether you want to allow your email to be shared with the EFF.
@@ -420,6 +719,19 @@ You will be asked to enter an email address, agree to the letsencrypt terms of s
 Certbot will automatically update your nginx server config. Any line that was changed by certbot will be appended with "# managed by Certbot"
 
 Certbot will also handle certificate renewal. The command to generate the ssl certificate also adds a systemd timer that will run certbot twice a day. Normally no action is taken, but if your certificate is within 30 days of expiration, certbot will automatically renew your certificate.
+
+## Make a Backup!
+
+Be sure to take a snapshot at this point. This was an awful lot of configuration and it would be painful to have to start from scratch.
+
+## Maintaining your VPS
+
+It's a good idea regularly install security updates on your VPS. About once a week you should log in and run
+
+``` command line instruction to download the latest packages on a debian-based distro
+ $ sudo apt-get update
+ $ sudo apt-get upgrade
+```
 
 
 => https://creativecommons.org/licenses/by-nc-sa/4.0/    The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
