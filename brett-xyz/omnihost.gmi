@@ -1,0 +1,21 @@
+# Omnihost
+
+Omnihost is a static site generator that converts gemtext markup files to HTML. The goal is to eventually be able to convert gemtext files to gophermaps as well.
+
+This site was built with omnihost.
+
+Omnihost is a work in progress.
+
+## Source Code
+
+=> https://github.com/b-src/omnihost
+
+## Binaries
+
+=> https://pypi.org/project/omnihost
+
+## License
+
+Omnihost is licensed under the the MIT License.
+
+=> https://creativecommons.org/licenses/by-nc-sa/4.0/    The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
