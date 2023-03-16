@@ -1,4 +1,16 @@
+## Projects
+
+=> omnihost.gmi     Omnihost, a static site generator for converting native gemini content to HTML and (eventually) gophermaps
+
+## Guides and References
+
 => vps_hosting_guide.gmi   A guide to hosting a gemini capsule on a VPS
+
+=> iptables.gmi    An iptables reference
+
+=> dotfiles.gmi    A guide to managing dotfiles with version control
+
+## External Links
 
 => cool_stuff.gmi   Cool shit on the internet
 

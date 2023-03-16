@@ -1,0 +1,120 @@
+# Managing your Dotfiles
+
+If you've found your way here then chances are you're someone who has spent a significant amout of time tweaking your local config. Once you have your system configured the way you like, you're faced with some additional challenges:
+
+ * How do you share configuration between systems?
+ * How do you back up your configuration to avoid losing all your hard work?
+
+You may have thought about using version control, but ruled it out since config files aren't all centrally located. While this has gotten better, not every application respects $XDG_CONFIG_HOME. This is a solvable problem. Using symlinks will allow you keep your configuration files in a central location while still allowing applications to find their config in the usual place.
+
+An additional benefit of using version control for your configuration is that if you break something it becomes very easy to roll back!
+
+I'll explain how to do this manually, options for automation, and how to handle secrets.
+
+# Using Git
+
+Create repo wherever you like. I like ~/.dotfiles
+
+``` command line instruction for creating a dotfiles repo
+ $ mkdir ~/.dotfiles
+ $ cd ~/.dotfiles
+ $ git init
+```
+
+Make a directory to hold everything in your ~/.config directory. I like to call mine XDG_CONFIG_HOME, though this won't be compatible with rcm as discussed later
+
+``` command line instruction for creating an XDG_CONFIG_HOME directory
+ $ mkdir ~/.dotfiles/XDG_CONFIG_HOME
+```
+
+For each application that keeps its config here, copy the directory structure and files. Here's an example for neovim 
+
+``` command line instruction to copy neovim config from ~/.config to XDG_CONFIG_HOME
+ $ cp -rip ~/.config/nvim ~/.dotfiles/XDG_CONFIG_HOME
+```
+
+For each configuration file that was copied, replace it with a symlink to the file in the repo. Example shown with nvim/init.lua
+
+``` command line instruction to create a symlink for a config file
+ $ cd ~/.config/nvim
+ $ rm init.lua
+ $ ln -s ~/.dotfiles/XDG_CONFIG_HOME/nvim/init.lua init.lua
+```
+
+If you run ls -l you should see the link path in the output
+
+``` output of ls -l after creating a symbolic link
+... init.lua -> /home/<user>/.dotfiles/XDG_CONFIG_HOME/nvim/init.lua
+```
+
+After linking everything in ~/.config, repeat the same process for your config files stored elsewhere.
+
+# Automation
+
+## The Traditional Way
+
+The classic option for managing your dotfiles repo is to use a combination of makefiles and shell scripts. You get the most flexibility this way, at the cost of janitoring the scripts yourself.
+
+## Using rcm
+
+rcm is a tool developed at thoughtbot to manage config files. It provides utilities for creating symlinks to config files, installing config files from a dotfile repo, and supports nice features like host-specific tags. If it fits your requirements (i.e. you only need to manage dotfiles for unix-based systems), then it will likely be faster, easier, and more convenient than a homebrewed solution.
+
+rcm operates on a few assumptions/requirements:
+
+ * Your dotfile repo is at ~/.dotfiles (can be changed with the -d flag)
+ * Your dotfile repo root is relative to your user home directory (~)
+
+### Creating Symlinks with rcm
+
+Starting without an existing dotfiles repo, run:
+
+``` command to create a symlink with mkrc
+ $ mkrc <~/path/to/dotfile>
+```
+
+This will create ~/.dotfiles if it does not exist, move the <~/path/to/dotfile> file to ~/.dotfiles/path/to/dotfile, and create a symlink from the old location to the new location. Repeat this for every file you'd like to add to the repo.
+
+To install your configuration on another system, clone the repo and run rcup:
+
+``` command to install dotfiles
+ $ git clone <repo> ~/.dotfiles
+ $ rcup
+```
+
+This will create folders under ~ with the same structure as the dotfile repo, and create the necessary symlinks to install config files.
+
+rcm can also be used with an existing dotfiles repo if the structure matches what rcm would use. See the links below for more details.
+
+### rcm Resources
+
+A better intro to rcm can be found here:
+
+=> https://thoughtbot.com/blog/rcm-for-rc-files-in-dotfiles-repos thoughtbot blog on rcm
+
+And a more complete reference can be found in the rcm man page, which is also hosted here:
+=> https://thoughtbot.github.io/rcm/rcm.7.html rcm man page
+
+## Other Dotfile Management Tools
+
+rcm is far from the only game in town. For other dotfile managment options, see this page:
+
+=> https://dotfiles.github.io/utilities/ dotfile management utilities
+
+# Managing Secrets
+
+If you plan to host your repo publicly, you will want to be extremely careful about not including secrets. Once something has been added to a git repo the information can never be truly scrubbed. Each file should be examined for credentials or other private info before being added to the repo.
+
+If you are using a private repo or a self-hosted private repo you can afford to take fewer precautions.
+
+Options for keeping secrets out:
+ * Leave a file out completely
+ * If the configuration format allows, pull the secrets into a separate file and source or import them in the config file in your repo. These files can be kept in your repo folder as long as they are ignored by your .gitignore.
+
+ # My Dotfiles
+
+ My dotfiles can be found here:
+
+ => https://github.com/b-src/.dotfiles
+
+
+=> https://creativecommons.org/licenses/by-nc-sa/4.0/    The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
