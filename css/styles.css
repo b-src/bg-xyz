@@ -3,11 +3,26 @@ body {
     max-width: 650px;
     line-height: 1.6;
     font-size: 18px;
-    color: #444444;
-    background-color: #EEEEEE;
+    color: #EBDBB2;
+    background-color: #1D2021;
     padding 0 10px;
 }
 
-h1, h2, h3 {
+h1 {
     line-height: 1.2;
+    color: #B8BB26;
+}
+
+h2 {
+    line-height: 1.2;
+    color: #8EC07C;
+}
+
+h3 {
+    line-height: 1.2;
+    color: #689D6A;
+}
+
+a {
+    color: #BDAE93;
 }
