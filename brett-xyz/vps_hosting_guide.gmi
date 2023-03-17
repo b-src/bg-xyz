@@ -185,6 +185,7 @@ Set firewall rules to allow outbound DNS lookups (needed to allow package manage
  $ sudo iptables -A INPUT -p tcp -s <dns.server.ip.address> --sport 53 -m state --state ESTABLISHED -j ACCEPT
 ```
 
+
 Set firewall rules to allow all localhost traffic
 
 ```
@@ -243,13 +244,26 @@ Set firewall rules to drop all other traffic
 
 ```
 
-At this point list the iptables rules again with the following command.
+If you plan to use letsencrypt to provide SSL certificates (see the 'add https' section later for more info) you will need some additional firewall rules to allow outbound http and https requests
+
+For more details on configuring your firewall to be compatible with letsencrypt, see their documentation
+
+=> https://letsencrypt.org/docs/integration-guide/#firewall-configuration letsencrypt firewall configuration
+
+``` commands line instruction for configuring iptables rules to enable letsencrypt
+ $ sudo iptables -I OUTPUT <number> -p tcp --dport 80 -j ACCEPT
+ $ sudo iptables -I OUTPUT <number> -p tcp --dport 443 -j ACCEPT
+ $ sudo iptables -I INPUT <number> -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+ $ sudo iptables -I INPUT <number> -p tcp --sport 443 -m state --state ESTABLISHED -j ACCEPT
+```
+
+Replace <number> with the appropriate place to insert each rule in the respective chain. Place them above the corresponding rules for http and https traffic you just enabled. To find the numbers, run the following command to list the iptables rules
 
 ``` command line instruction to list iptables rules
  $ sudo iptables -vnL --line-numbers
 ```
 
-Save your iptables rules
+List the rules one more time with the above command and verify you've set them correctly. When you're satisfied, save the rules
 
 ``` command line instruction to save iptables rules
  $ sudo iptables-save > /etc/iptables/rules.v4

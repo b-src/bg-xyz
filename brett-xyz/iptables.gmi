@@ -40,7 +40,7 @@ Add a rule. -A meaning append the rule to the end of the chain. -p specifies the
 
 Outbound rules are very similar to inbound rules with slight differences. The OUTPUT chain is specified instead of the INPUT chain. instead of a source ip with -s, a destination ip can be specified with -d. Instead of a source port with --sport, a destination port is specified with --dport.
 
-These inbound and outbound rules are shown with source port/ip values for inbound commands and destination port/ip values for outbound commands. There are situations where your inbound rules may use destination port/ip values and your outbound rules may use sourc port/ip values.
+These inbound and outbound rules are shown with source port/ip values for inbound commands and destination port/ip values for outbound commands. There are situations where your inbound rules may use destination port/ip values and your outbound rules may use source port/ip values.
 
 Inbound:
 ``` command line instruction to add an inbound iptables rule
@@ -62,6 +62,35 @@ Drop a rule. -D means drop. <CHAIN-NAME> meaning one of INPUT/FORWARD/OUTPUT. <L
 ``` command line instruction to drop an iptables rule
  $ sudo iptables -D <CHAIN-NAME> <LINE NUMBER>
 ```
+
+## Using Source Port and Destination Port Correctly
+
+Whether you need to define a rule using a source port or a destination port is context dependent and can be confusing. Let's compare rules for allowing inbound requests over http (e.g. running a web server) versus allowing outbound requests over http (e.g. making a curl request).
+
+To serve requests over http and drop all other traffic, you might create rules like this:
+
+``` command line instruction to add iptables rules to allow inbound http traffic
+ $ sudo iptables -A INPUT -p tcp --dport 80 -j ALLOW
+ $ sudo iptables -A INPUT -j DROP
+ $ sudo iptables -A OUTPUT -p tcp --sport 80 -j ALLOW
+ $ sudo iptables -A OUTPUT -j DROP
+```
+
+An inbound http request packet will have destination of port 80, which will be allowed by the first rule in the INPUT chain. The response will be sent from port 80, which will be allowed by the first rule in the OUTPUT chain.
+
+If we try to make a curl request to another server, we will be making a request to that server's port 80. The packet will have a destination port of 80, but its source port will be different. This doesn't match the first rule in the output chain, and will be dropped by the second rule. To create a configuration that permits outbound http requests, you might have rules like these:
+
+``` command line instruction to add iptables rules to allow outbound http traffic
+ $ sudo iptables -A INPUT -p tcp --sport 80 -j ALLOW
+ $ sudo iptables -A INPUT -j DROP
+ $ sudo iptables -A OUTPUT -p tcp --dport 80 -j ALLOW
+ $ sudo iptables -A OUTPUT -j DROP
+```
+
+This configuration will permit curl requests, which will be made to a server and have a destination port of 80. The return packet will originate from the server's port 80. Similarly to the first example, this configuration won't allow incoming http requests, because those will have destination port 80 and we don't have a rule on the INPUT chain allowing that traffic.
+
+These examples could be improved by only allowing traffic for established connections on the return paths with `... -m state --state ESTABLISHED -j ALLOW`
+
 
 ## VPS Firewall Configuration Example
 
@@ -125,6 +154,7 @@ Add rules allowing outbound DNS lookups. The example command is using a google D
 ```
 
 In addition to limiting DNS traffic to the specific IP of our DNS servers, these rules also specify the allowed connection tracking states for the packets. The outbound rules allow both NEW and ESTABLISHED packets, allowing our server to make requests to the DNS server. The inbound rules only allow ESTABLISHED packets, meaning that the DNS traffic that's allowed into our server can ONLY come from requests made BY our server.
+
 
 Listing the rules at this point should show the following
 
