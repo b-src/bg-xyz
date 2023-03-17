@@ -1,0 +1,34 @@
+# Fixing Issues with Poetry Dependency Resolution
+
+There are several things that can cause poetry dependency resolution to hang indefinitely or for a very long time. Here are some things to try if you run into this issue:
+
+ 1. Disable the experimental new installer
+
+``` command to disable the poetry experimental installer
+ $ poetry config experimental.new-installer false
+```
+
+The experimental new installer is multithreaded and can end up with race conditions, while the old installer is single threaded.
+
+Github issues regarding this:
+
+=> https://github.com/python-poetry/poetry/issues/3336
+=> https://github.com/python-poetry/poetry/issues/6865
+
+The first link claims that this was fixed in poetry v1.2.0, but the second link has reports of people seeing this issue with later versions of poetry. It may be caused by issues with an older version of pip as well.
+
+ 2. Delete the cache
+
+``` command to delete poetry caches
+  $ poetry cache clear PyPI --all
+  $ poetry cache clear _default_cache --all
+```
+
+This issue was allegedly fixed in poetry v1.3.0.
+
+Github issues regarding this:
+
+=> https://github.com/python-poetry/poetry/issues/6030
+
+
+=> https://creativecommons.org/licenses/by-nc-sa/4.0/    The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)

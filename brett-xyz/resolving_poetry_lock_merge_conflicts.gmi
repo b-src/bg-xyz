@@ -1,0 +1,29 @@
+# Resolving Merge Conflicts in poetry.lock
+
+The poetry.lock file is a frequent source of merge conflicts. Due to hash changes and poetry rearranging the file, fixing these by hand would be extremely tedious. Luckily there's an automated way to resolve this as described here:
+
+=> https://github.com/python-poetry/poetry/issues/496#issuecomment-738680177 fixing merge conflicts in poetry.lock
+
+The process looks like this:
+
+ 1. Restore poetry.lock in both the index and working tree from HEAD.
+
+``` command to restore poetry.lock in the index and working tree
+ $ git restore --staged --worktree poetry.lock
+```
+
+ 2. Refresh the poetry.lock file based on the contents of pyproject.toml. Without including --no-update all dependencies will be updated to their latest compatible versions.
+
+``` command to refresh the lockfile
+ $ poetry lock --no-update
+```
+
+ 3. Stage the update lockfile
+
+``` command to add the updated lockfile to the git index
+ $ git add poetry.lock
+```
+
+Followed by `git commit` if merging or `git rebase --continue` if rebasing
+
+=> https://creativecommons.org/licenses/by-nc-sa/4.0/    The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)

@@ -10,6 +10,12 @@
 
 => dotfiles.gmi    A guide to managing dotfiles with version control
 
+### Python Development
+
+=> resolving_poetry_lock_merge_conflicts.gmi Resolving merge conflicts in poetry.lock
+
+=> poetry_dependency_resolution_hangs.gmi Fix stuck dependency resolution in poetry
+
 ## External Links
 
 => cool_stuff.gmi   Cool shit on the internet
