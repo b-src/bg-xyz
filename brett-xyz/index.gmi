@@ -1,16 +1,20 @@
 ## Projects
 
+=> b_py.gmi         b-py, a python project template built with cruft and cookiecutter
+
 => omnihost.gmi     Omnihost, a static site generator for converting native gemini content to HTML and (eventually) gophermaps
 
 ## Guides and References
 
-=> vps_hosting_guide.gmi   A guide to hosting a gemini capsule on a VPS
+=> vps_hosting_guide.gmi   Hosting a gemini capsule on a VPS
 
-=> iptables.gmi    An iptables reference
+=> iptables.gmi    iptables reference
 
-=> dotfiles.gmi    A guide to managing dotfiles with version control
+=> dotfiles.gmi    Managing dotfiles with version control
 
 ### Python Development
+
+=> python.gmi    Guidelines for python development
 
 => resolving_poetry_lock_merge_conflicts.gmi Resolving merge conflicts in poetry.lock
 

@@ -1,0 +1,24 @@
+# b-py
+
+b-py is a python project template built with cruft and cookiecutter that lets me build projects according to the ideas laid out in
+
+=> python.gmi
+
+configuration and infrastructure that are common between projects can be managed in once central place. when updates are made, projects that are linked to the template can be easily synced to the latest version of the template.
+
+## Source Code
+
+=> https://github.com/b-src/b-py
+
+## License
+
+b-py is licensed under the the MIT License.
+
+# README
+TODO: add readme
+
+# Design Choices
+TODO: add discussion on design choices
+
+
+=> https://creativecommons.org/licenses/by-nc-sa/4.0/    The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)

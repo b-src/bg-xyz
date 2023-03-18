@@ -1,5 +1,14 @@
 # Python Development Guidelines
 
+This is a set of guidelines outlining how I like to build python projects. I've created a template with cookiecutter and cruft that makes it easy to set up a project that follows these rules:
+
+=> b_py.gmi b-py
+
+=> https;//github.com/b-src/b-py
+
+
+## Local Environment
+
 ### Use pyenv to manage python versions
 
 => https://github.com/pyenv/pyenv
@@ -14,11 +23,19 @@ Pyenv-virtualenv is a pyenv plugin for creating virtual environments. Venvs can 
 
 Pyenv-virtualenv works similar to virtualenv: all virtual environments are created in a central directory. Once a venv has been created, the local environment is set to the venv with pyenv. If your shell has been configured per the instructions in the pyenv-virtualenv README, virtual environments will be automatically activated when you cd into the directory.
 
-### Prefer tools that can be configured within pyproject.toml
 
-Being able to see all project config in one file as opposed to flipping back and forth between multiple config files is quite nice. It becomes easy to make sure that overlapping config lines up, e.g. line length in auto-formatters vs. linters.
+## Deployment
 
-### Set up auto-formatting and linting
+### Deploy with Containers
+
+Packaging and distributing a python project is famously difficult. Containerizing your application makes it easy to deploy on any environment with a compatible OS and CPU architecture. You can be confident that the app environment in production is the same one that you tested locally. In addition, you can be confident that other developers are developing against the same project. Using containers lets you sidestep the worst part of the python ecosystem at the cost of some initial work to set up.
+
+
+## Formatting and Style
+
+### Set up auto-formatting and linting and enforce it in CI
+
+Code reviews should be focused on the program logic and design. Things like code style and formatting distract from the real work of identifying bugs or design choices that will be limiting in the future. As much as possible things like formatting and linting should be automated. Enforcing them in CI means that by the time a reviewer sees the code any style issues have already been corrected.
 
 ### Use type hints, at least for function arguments and return types
 
@@ -28,6 +45,12 @@ As Guido van Rossum said,
 
 Explicitly communicating the types that your functions expect and return makes it much easier for someone reading the code to understand what your code is doing.
 
+## Choosing Tools
+
+### Prefer tools that can be configured within pyproject.toml
+
+Being able to see all project config in one file as opposed to flipping back and forth between multiple config files is quite nice. It becomes easy to make sure that overlapping config lines up, e.g. line length in auto-formatters vs. linters.
+
 ### Tools I Like
 
 * pyenv - python version management
@@ -36,5 +59,4 @@ Explicitly communicating the types that your functions expect and return makes i
 * black - automatic code formatting
 * mypy - type hint checking
 * flakeheaven - a flake8 wrapper that allows configuration in pyproject.toml
-
-TODO: flake8 plugins
+* pytest - automated tests
