@@ -20,10 +20,19 @@ jobs:
       - name: make output dirs
         run: mkdir output && mkdir output/www output/gemini
       - name: process-pages
-        uses: docker://brettgleason/omnihost:latest
+        uses: addnab/docker-run-action@v3
         with:
-          entrypoint: /bin/bash
-          args: python3 -m omnihost 
+          image: brettgleason/omnihost:latest
+          options: |
+            -v brett-xyz:/home/appuser/gemini_source
+            -v css:/home/appuser/stylesheet_source
+            -v output/www:/home/appuser/html_output
+            -v output/gemini:/home/appuser/gemini_output
+            -e OMNIHOST_SOURCE_DIR="/home/appuser/gemini_source"
+            -e OMNIHOST_CSS_TEMPLATE_PATH="/home/appuser/stylesheet_source/styles.css"
+            -e OMNIHOST_HTML_OUTPUT_DIR="/home/appuser/html_output"
+            -e OMNIHOST_GEMINI_OUTPUT_DIR="/home/appuser/gemini_output"
+          run: python3 -m omnihost
       - name: prepare-artifact
         run: zip omnihost_output.zip output
       - name: upload-artifact
