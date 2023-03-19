@@ -20,7 +20,7 @@ jobs:
       - name: make output dirs
         run: mkdir output && mkdir output/www output/gemini
       - name: process-pages
-        uses: brettgleason/omnihost:latest
+        uses: docker://brettgleason/omnihost:latest
         with:
           entrypoint: /bin/bash
           args: python3 -m omnihost 
