@@ -24,6 +24,7 @@ jobs:
         with:
           image: brettgleason/omnihost:latest
           options: |
+            --user 1000
             -v ${{ github.workspace }}/brett-xyz:/home/appuser/gemini_source
             -v ${{ github.workspace }}/css:/home/appuser/stylesheet_source
             -v ${{ github.workspace }}/output/www:/home/appuser/html_output
