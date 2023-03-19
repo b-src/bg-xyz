@@ -24,10 +24,10 @@ jobs:
         with:
           image: brettgleason/omnihost:latest
           options: |
-            -v ${{ github.workspace }}:/home/runner/brett-xyz:/home/appuser/gemini_source
-            -v ${{ github.workspace }}:/home/runner/css:/home/appuser/stylesheet_source
-            -v ${{ github.workspace }}:/home/runner/output/www:/home/appuser/html_output
-            -v ${{ github.workspace }}:/home/runner/output/gemini:/home/appuser/gemini_output
+            -v ${{ github.workspace }}/brett-xyz:/home/appuser/gemini_source
+            -v ${{ github.workspace }}/css:/home/appuser/stylesheet_source
+            -v ${{ github.workspace }}/output/www:/home/appuser/html_output
+            -v ${{ github.workspace }}/output/gemini:/home/appuser/gemini_output
             -e OMNIHOST_SOURCE_DIR="/home/appuser/gemini_source"
             -e OMNIHOST_CSS_TEMPLATE_PATH="/home/appuser/stylesheet_source/styles.css"
             -e OMNIHOST_HTML_OUTPUT_DIR="/home/appuser/html_output"
