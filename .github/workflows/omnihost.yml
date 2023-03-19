@@ -18,13 +18,12 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
       - name: make output dirs
-        run: mkdir output && mkdir output/www output/gemini && chmod -R a+rw output && ls -lt output
+        run: mkdir output && mkdir output/www output/gemini && chmod -R a+rw output
       - name: process-pages
         uses: addnab/docker-run-action@v3
         with:
           image: brettgleason/omnihost:latest
           options: |
-            --user 1000
             -v ${{ github.workspace }}/brett-xyz:/home/appuser/gemini_source
             -v ${{ github.workspace }}/css:/home/appuser/stylesheet_source
             -v ${{ github.workspace }}/output/www:/home/appuser/html_output
@@ -33,7 +32,7 @@ jobs:
             -e OMNIHOST_CSS_TEMPLATE_PATH=/home/appuser/stylesheet_source/styles.css
             -e OMNIHOST_HTML_OUTPUT_DIR=/home/appuser/html_output
             -e OMNIHOST_GEMINI_OUTPUT_DIR=/home/appuser/gemini_output
-          run: env && ls /home/appuser/gemini_source && python3 -m omnihost
+          run: python3 -m omnihost
       - name: prepare-artifact
         run: zip omnihost_output.zip output
       - name: upload-artifact
