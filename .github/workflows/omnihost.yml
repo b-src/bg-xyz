@@ -16,9 +16,9 @@ jobs:
     environment: production
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v2
       - name: make output dirs
-        run: mkdir output && mkdir output/www output/gemini && pwd
+        run: mkdir output && mkdir output/www output/gemini && ls -lt output
       - name: process-pages
         uses: addnab/docker-run-action@v3
         with:
