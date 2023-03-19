@@ -18,7 +18,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
       - name: make output dirs
-        run: mkdir output && mkdir output/www output/gemini
+        run: mkdir output && mkdir output/www output/gemini && pwd
       - name: process-pages
         uses: addnab/docker-run-action@v3
         with:
