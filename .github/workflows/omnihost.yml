@@ -1,0 +1,34 @@
+name: Omnihost
+
+concurrency:
+  group: production
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - main
+      - add-gitops-deployments
+
+jobs:
+  omnihost:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      - name: make output dirs
+        run: mkdir output && mkdir output/www output/gemini
+      - name: process-pages
+        uses: brettgleason/omnihost:latest
+        with:
+          entrypoint: /bin/bash
+          args: python3 -m omnihost 
+      - name: prepare-artifact
+        run: zip omnihost_output.zip output
+      - name: upload-artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: omnihost_output
+          path: omnihost_output.zip
+          retention-days: 1
