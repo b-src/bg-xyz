@@ -28,10 +28,10 @@ jobs:
             -v ${{ github.workspace }}/css:/home/appuser/stylesheet_source
             -v ${{ github.workspace }}/output/www:/home/appuser/html_output
             -v ${{ github.workspace }}/output/gemini:/home/appuser/gemini_output
-            -e OMNIHOST_SOURCE_DIR="/home/appuser/gemini_source"
-            -e OMNIHOST_CSS_TEMPLATE_PATH="/home/appuser/stylesheet_source/styles.css"
-            -e OMNIHOST_HTML_OUTPUT_DIR="/home/appuser/html_output"
-            -e OMNIHOST_GEMINI_OUTPUT_DIR="/home/appuser/gemini_output"
+            -e OMNIHOST_SOURCE_DIR=/home/appuser/gemini_source
+            -e OMNIHOST_CSS_TEMPLATE_PATH=/home/appuser/stylesheet_source/styles.css
+            -e OMNIHOST_HTML_OUTPUT_DIR=/home/appuser/html_output
+            -e OMNIHOST_GEMINI_OUTPUT_DIR=/home/appuser/gemini_output
           run: env && python3 -m omnihost
       - name: prepare-artifact
         run: zip omnihost_output.zip output
