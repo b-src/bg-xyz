@@ -1,0 +1,38 @@
+# Using GitOps and Omnihost to Automate Deployments of your Site/Capsule
+
+This guide extends on the work done in the gemini vps hosting guide
+
+=> vps_hosting_guide.gmi
+
+Previously we went through the process of setting up and securing a server to host both a gemini capsule and a website. In the end we have a functional site, but the deployment process is manually copying your pages into their respective directories. This gets old fast.
+
+In this guide we'll be automating the deployment process. In the end we'll have a CI/CD pipeline that runs every time we have a merge to our site's github repo and automatically deploys our pages. The pipeline will use Omnihost to build html pages from from gemtext pages and copy the built pages to the VPS. The VPS will have a script that runs periodically to move the pages to their corresponding site/capsule root directories.
+
+For an example of the final setup:
+
+=> https://github.com/b-src/brett-xyz
+
+## Create a Git Repo to Manage your Pages
+
+If you haven't already, create a git repo for your site content. A limitation of the current release of Omnihost (v0.4.0) is that all of your content must be in one top-level directory. For compatibility with Omnihost, the structure of your repo should look like this:
+
+``` structure of your site content repo
+/
+-- .github/
+   -- workflows/
+      -- github_ci.yml
+-- site_name/
+   -- page.gmi
+   ...
+   -- page_n.gmi
+-- css/
+   -- style.css
+```
+
+## Create a CI/CD pipeline
+
+We will be using Github Actions to build our pipeline, but the same thing can be done using any CI/CD provider. Github Actions runs pipelines which are defined in yaml in your repo's .github/workflows/ directory. Create a .github/workflows/github_ci.yml file in your repo and add the following content:
+
+``` github ci pipeline configuration
+ 
+```

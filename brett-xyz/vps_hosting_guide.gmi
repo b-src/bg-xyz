@@ -747,5 +747,11 @@ It's a good idea regularly install security updates on your VPS. About once a we
  $ sudo apt-get upgrade
 ```
 
+## Further Improvements
+
+At this point your capsule is fully functional, but there are still improvements that could be made. See this article for more info:
+
+=> deploying_your_site_with_gitops.gmi using GitOps and Omnihost to automate deployments of your site
+
 
 => https://creativecommons.org/licenses/by-nc-sa/4.0/    The content of this website is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
