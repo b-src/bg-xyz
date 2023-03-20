@@ -33,6 +33,7 @@ jobs:
             -e OMNIHOST_HTML_OUTPUT_DIR=/home/appuser/html_output
             -e OMNIHOST_GEMINI_OUTPUT_DIR=/home/appuser/gemini_output
           run: python3 -m omnihost
+        run: ls output/www
       - name: prepare-artifact
         run: zip omnihost_output.zip output
       - name: upload-artifact
