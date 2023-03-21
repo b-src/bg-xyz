@@ -30,10 +30,10 @@ jobs:
             -w ${{ github.workspace }}/output/www \
             -o ${{ github.workspace }}/output/gemini
       - name: prepare-artifact
-        run: zip -r omnihost_output.zip ${{ github.workspace }}/output
+        run: cd output && zip -r omnihost_output.zip . ${{ github.workspace }}/output
       - name: upload-artifact
         uses: actions/upload-artifact@v3
         with:
           name: omnihost_output
-          path: omnihost_output.zip
+          path: output/omnihost_output.zip
           retention-days: 1
