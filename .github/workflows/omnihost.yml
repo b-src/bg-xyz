@@ -26,7 +26,7 @@ jobs:
       - run: |
           pip install omnihost
           omnihost -i ${{ github.workspace }}/brett-xyz \
-            -s ${{ github.workspace }}/css \
+            -s ${{ github.workspace }}/css/styles.css \
             -w ${{ github.workspace }}/output/www \
             -o ${{ github.workspace }}/output/gemini
       - name: prepare-artifact
