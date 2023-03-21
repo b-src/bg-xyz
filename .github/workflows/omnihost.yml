@@ -17,8 +17,9 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v3
-      - run: mkdir output && mkdir output/www output/gemini
-        name: process-pages
+      - name: make output dirs
+        run: mkdir output && mkdir output/www output/gemini
+      - name: process-pages
         uses: actions/setup-python@v4
         with: 
           python-version: "3.10"
