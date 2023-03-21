@@ -17,26 +17,20 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v3
-      - name: make output dirs
-        run: mkdir output && mkdir output/www output/gemini && chmod -R a+rw output && id -u
-      - name: process-pages
-        uses: addnab/docker-run-action@v3
-        with:
-          image: brettgleason/omnihost:latest
-          options: |
-            -v ${{ github.workspace }}/brett-xyz:/home/appuser/gemini_source
-            -v ${{ github.workspace }}/css:/home/appuser/stylesheet_source
-            -v ${{ github.workspace }}/output/www:/home/appuser/html_output
-            -v ${{ github.workspace }}/output/gemini:/home/appuser/gemini_output
-            -e OMNIHOST_SOURCE_DIR=/home/appuser/gemini_source
-            -e OMNIHOST_CSS_TEMPLATE_PATH=/home/appuser/stylesheet_source/styles.css
-            -e OMNIHOST_HTML_OUTPUT_DIR=/home/appuser/html_output
-            -e OMNIHOST_GEMINI_OUTPUT_DIR=/home/appuser/gemini_output
-            -e $UID
-            -e $GID
-          run: id -u && python3 -m omnihost
+        name: make output dir
+        run: mkdir output && mkdir output/www output/gemini
+        name: process-pages
+        uses: actions/setup-python@v4
+        with: 
+          python-version: "3.10"
+        run: |
+          pip install omnihost
+          omnihost -i ${{ github.workspace }}/brett-xyz \
+            -s ${{ github.workspace }}/css \
+            -w ${{ github.workspace }}/output/www \
+            -o ${{ github.workspace }}/output/gemini
       - name: prepare-artifact
-        run: ls output && zip omnihost_output.zip output
+        run: zip omnihost_output.zip ${{ github.workspace }}/output
       - name: upload-artifact
         uses: actions/upload-artifact@v3
         with:
