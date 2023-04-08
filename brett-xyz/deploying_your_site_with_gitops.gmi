@@ -6,7 +6,7 @@ This guide extends on the work done in the gemini vps hosting guide
 
 Previously we went through the process of setting up and securing a server to host both a gemini capsule and a website. In the end we have a functional site, but the deployment process is manually copying your pages into their respective directories. This gets old fast.
 
-In this guide we'll be automating the deployment process. In the end we'll have a CI/CD pipeline that runs every time we have a merge to our site's github repo and automatically deploys our pages. The pipeline will use Omnihost to build html pages from from gemtext pages and copy the built pages to the VPS. The VPS will have a script that runs periodically to move the pages to their corresponding site/capsule root directories.
+In this guide we'll be automating the deployment process. In the end we'll have a CI/CD pipeline that runs every time we have a merge to our site's github repo and automatically deploys our pages. The pipeline will use Omnihost to build html pages from from gemtext pages and save them as an artifact. The VPS will have a script that runs periodically to download new artifacts and move the pages to their corresponding site/capsule root directories.
 
 For an example of the final setup:
 
@@ -34,5 +34,59 @@ If you haven't already, create a git repo for your site content. A limitation of
 We will be using Github Actions to build our pipeline, but the same thing can be done using any CI/CD provider. Github Actions runs pipelines which are defined in yaml in your repo's .github/workflows/ directory. Create a .github/workflows/github_ci.yml file in your repo and add the following content:
 
 ``` github ci pipeline configuration
- 
+name: Omnihost
+
+concurrency:
+  group: production
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  omnihost:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      - name: make output dirs
+        run: mkdir output && mkdir output/www output/gemini
+      - name: process-pages
+        uses: actions/setup-python@v4
+        with: 
+          python-version: "3.10"
+      - run: |
+          pip install omnihost
+          omnihost -i ${{ github.workspace }}/<path-to-gemtext-files> \
+            -s ${{ github.workspace }}/<path-to-css-input> \
+            -w ${{ github.workspace }}/output/www \
+            -o ${{ github.workspace }}/output/gemini
+      - name: upload-artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: omnihost_output
+          path: output
+          retention-days: 1
 ```
+
+This creates a CI pipeline that will package your pages into a zip file every time there is a new commit pushed to your main branch. The basic outline is:
+
+ * check out the repo
+ * create output directories for omnihost to use
+ * set up a python 3.10 environment and install omnihost
+ * process your pages with omnihost
+ * save the omnihost output as an artifact
+
+The next time you merge your changes into main you'll see your pipeline run.
+
+## Automate deployments 
+
+### Push vs. Pull
+
+Older CI/CD models would use a push pattern. In this model the pipeline would be responsible for deploying the latest version of the software (or content in our case) onto the infrastructure directly. This is usually easier to set up, but it also means that your pipeline needs to have access to your infrastructure. Now you have to make sure those credentials are managed securely. It would be best if our pipeline had no access to our infrastructure at all.
+
+Since we're already hosting our repo publicly, it's not much more work to configure our CI/CD with a pull pattern instead. We'll set up a script on our VPS which will monitor 
+
