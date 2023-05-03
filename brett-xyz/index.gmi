@@ -8,6 +8,8 @@
 
 => vps_hosting_guide.gmi   Hosting a gemini capsule on a VPS
 
+=> deploying_your_site_with_ci_cd.gmi Automate your gemini capsule deployments using CI/CD and omnihost
+
 => iptables.gmi    iptables reference
 
 => dotfiles.gmi    Managing dotfiles with version control
