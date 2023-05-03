@@ -1,4 +1,4 @@
-# Using GitOps and Omnihost to Automate Deployments of your Site/Capsule
+# Using CI/CD and Omnihost to Automate Deployments of your Site/Capsule
 
 This guide extends on the work done in the gemini vps hosting guide
 
@@ -11,6 +11,8 @@ In this guide we'll be automating the deployment process. In the end we'll have 
 For an example of the final setup:
 
 => https://github.com/b-src/brett-xyz
+
+# Automate builds
 
 ## Create a Git Repo to Manage your Pages
 
@@ -82,11 +84,274 @@ This creates a CI pipeline that will package your pages into a zip file every ti
 
 The next time you merge your changes into main you'll see your pipeline run.
 
-## Automate deployments 
+# Automate deployments 
 
-### Push vs. Pull
+## Push vs. Pull
 
 Older CI/CD models would use a push pattern. In this model the pipeline would be responsible for deploying the latest version of the software (or content in our case) onto the infrastructure directly. This is usually easier to set up, but it also means that your pipeline needs to have access to your infrastructure. Now you have to make sure those credentials are managed securely. It would be best if our pipeline had no access to our infrastructure at all.
 
-Since we're already hosting our repo publicly, it's not much more work to configure our CI/CD with a pull pattern instead. We'll set up a script on our VPS which will monitor 
+Since we're already hosting our repo publicly, it's not much more work to configure our CI/CD with a pull pattern instead. We'll set up a script on our VPS which will monitor our repo, detect pipeline artifacts that are newer than the previously deployed artifact, and automatically deploy the newest artifact.
 
+## Create a GitHub Token
+
+Even though the repo is public, the deploy script will need an access token in order to download CI artifacts. 
+
+Create a new token here:
+
+=> https://github.com/settings/personal-access-tokens/new
+
+Select fine-grain token. Set an expiration date. GitHub will allow you to set an expiration date up to a year out. Under repository access, select your site repository. Under permissions, set Actions to Read-only. In the Overview you should see "2 permissions for 1 of your repositories" and "0 Account permissions".
+
+Click Generate Token.
+
+Save your token as a file.
+
+Info on all github api endpoints available for use with fine-grain access tokens can be found here:
+
+=> https://docs.github.com/en/rest/overview/endpoints-available-for-fine-grained-personal-access-tokens?apiVersion=2022-11-28 endpoints available for fine-grained access tokens
+
+Info on the two specific endpoints that will be used by our script can be found here:
+
+=> https://docs.github.com/en/rest/actions/artifacts?apiVersion=2022-11-28#list-artifacts-for-a-repository list artifacts for a repository
+
+=> https://docs.github.com/en/rest/actions/artifacts?apiVersion=2022-11-28#get-an-artifact get an artifact
+
+## Create a Service User
+
+We will create a service user to run the deploy script. The user will have a home directory which will be the new home for our site's pages. The user will not be able to log in.
+
+``` command line instruction to create a service user called ci_deploy
+ $ sudo useradd -m -s /sbin/nologin ci_deploy
+```
+
+## Add your token to your server
+
+Copy your token to your VPS with scp and move it to /usr/local/share/ci_deploy/ci_deploy_token.txt
+
+Change the owner of the token to your service user.
+``` command line instruction to change the owner of your token to your service user
+ $ sudo chown ci_deploy:ci_deploy /usr/local/share/ci_deploy/ci_deploy_token.txt
+```
+
+## Update your Site Root Directories
+
+Create a sites directory in the ci_deploy user's home directory.
+
+``` command line instruction to create a sites directory and change its owner to the ci_deploy user
+ $ sudo mkdir /home/ci_deploy/sites
+ $ sudo chown ci_deploy:ci_deploy /home/ci_deploy/sites
+```
+
+Create symlinks from your existing site root directories to the location. These instructions assume your site roots are under /usr/share/ as explained in the VPS hosting guide. Only delete your existing pages if you have a backup!
+
+``` command line instruction to create symbolic links from the existing site root dirs to the newly created sites directory
+ $ cd /usr/share/nginx
+ $ sudo rm -r <site-root-dir>
+ $ sudo ln -s /home/ci_deploy/sites/www <site-root-dir>
+
+ $ cd /usr/share/agate
+ $ sudo rm -r root 
+ $ sudo ln -s /home/ci_deploy/sites/gemini root
+
+ $ cd /usr/share/gopher
+ $ sudo rm -r root 
+ $ sudo ln -s /home/ci_deploy/sites/gopher root
+```
+
+## Add a Deployment Script
+
+Create a directory and file to hold your deployment script:
+
+``` command line instruction to create a file for the deployment script
+ $ sudo mkdir /usr/local/bin/ci_deploy
+ $ sudo touch /usr/local/bin/ci_deploy/ci_deploy.py
+ $ sudo chown ci_deploy:ci_deploy /usr/local/bin/ci_deploy/ci_deploy.py
+```
+
+Add the following contents to ci_deploy.py:
+
+``` Deployment script
+import logging
+import os
+import requests
+import shutil
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict
+
+from requests.models import HTTPError
+
+
+repo_url = "https://api.github.com/repos/b-src/bg-xyz/actions/artifacts"
+home_path = Path("/home/ci_deploy")
+artifact_timestamp_file_path = home_path / "last_deployed_time.txt"
+deploy_path = home_path / "sites"
+token_path = Path("/usr/local/share/ci_deploy/ci_deploy_token.txt")
+
+
+def configure_logging() -> logging.Logger:
+    log_handler = logging.StreamHandler(sys.stdout)
+    log_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(levelname)s - %(message)s")
+    log_handler.setFormatter(formatter)
+    logging.basicConfig(level=logging.INFO, handlers=[log_handler])
+    return logging.getLogger("ci_deploy script")
+
+
+logger = configure_logging()
+
+
+def get_token_from_file(token_file_path: Path) -> str:
+    token = ""
+    try:
+        with open(token_file_path, "r") as tf:
+            token = tf.read().strip()
+
+    except FileNotFoundError as e:
+        logger.critical("Token file not found at %s: %s", token_file_path, str(e))
+    except PermissionError as e:
+        logger.critical("Invalid permissions for %s: %s", token_file_path, str(e))
+
+    return token
+
+
+def get_latest_artifact(repo_url: str) -> Dict[str, Any]:
+    latest_artifact = {}
+    artifacts = requests.get(url=repo_url).json()["artifacts"]
+    if artifacts:
+        latest_artifact = artifacts[0]
+
+    return latest_artifact
+
+
+def get_previous_artifact_time() -> datetime:
+    previous_time = datetime.min
+    if os.path.isfile(artifact_timestamp_file_path):
+        with open(artifact_timestamp_file_path, "r") as f:
+            previous_time = datetime.strptime(f.read().strip(), "%Y-%m-%dT%H:%M:%SZ")
+
+    return previous_time
+
+
+def set_previous_artifact_time(artifact_time: datetime) -> None:
+    logger.info("Updating deployed artifact timestamp")
+    with open(artifact_timestamp_file_path, "w") as f:
+        f.write(artifact_time.strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+
+def artifact_is_new(artifact_created_time: datetime) -> bool:
+    last_deploy_time = get_previous_artifact_time()
+    return artifact_created_time > last_deploy_time
+
+
+def deploy_artifact(artifact_download_url: str, artifact_created_time: datetime) -> None:
+    file_name = home_path / f"artifact_{datetime.strftime(artifact_created_time, '%m_%d_%Y_%H_%M_%S')}.zip"
+    logger.info("Downloading %s", artifact_download_url)
+    try:
+        token = get_token_from_file(token_path)
+        artifact_zip = requests.get(url=artifact_download_url, headers = {"Authorization": f"token: {token}"})
+        artifact_zip.raise_for_status()
+        with open(file_name, "wb") as f:
+            f.write(artifact_zip.content)
+
+        if deploy_path.exists():
+            logger.info("Removing existing deployment")
+            shutil.rmtree(deploy_path)
+
+        deploy_path.mkdir()
+        logger.info("Unzipping new artifact into %s", deploy_path)
+        shutil.unpack_archive(str(file_name), str(deploy_path))
+        logger.info("Deployment successful")
+
+        set_previous_artifact_time(artifact_created_time)
+
+        logger.info("Deleting downloaded artifact at %s", file_name)
+        file_name.unlink()
+    except HTTPError as e:
+        logger.error("Error downloading artifact: %s", e)
+
+
+if __name__ == "__main__":
+    try:
+        logger.info("Running site deployment script")
+        latest_artifact = get_latest_artifact(repo_url)
+        artifact_created_time = datetime.strptime(latest_artifact["created_at"], "%Y-%m-%dT%H:%M:%SZ")
+
+        if artifact_is_new(artifact_created_time):
+            if latest_artifact["expired"] == True:
+                logger.error("Latest artifact is newer than deployed artifact but is expired and cannot be deployed")
+            else:
+                logger.info("New artifact found, deploying")
+                artifact_download_url = latest_artifact["archive_download_url"]
+                deploy_artifact(artifact_download_url, artifact_created_time)
+        else:
+            logger.info("Latest artifact already deployed, nothing to do")
+
+    except Exception as e:
+        logger.critical(e, exc_info=True)
+
+```
+
+## Use systemd to Schedule your Script
+
+We're going to configure the script as a systemd service and use a systemd timer to set it to run every 15 minutes.
+
+First create the service definition file:
+
+``` command line instruction to create deploy script service file
+ $ sudo touch /etc/systemd/system/ci_deploy.service
+```
+
+Add the following contents to the file:
+
+```
+[Unit]
+Description=Site CI Deploy Script
+After=network.target syslog.target timers.target
+Requires=network.target syslog.target
+
+[Service]
+User=ci_deploy
+Group=ci_deploy
+ExecStart=/usr/bin/python3 /usr/local/bin/ci_deploy/ci_deploy.py
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Create a systemd timer file for the script
+
+```
+ $ sudo touch /etc/systemd/system/ci_deploy.timer
+```
+
+Add the following contents to the timer file:
+
+```
+[Unit]
+Description=Run CI deploy script every 15 minutes
+
+[Timer]
+OnCalendar=*:0/15
+Unit=ci_deploy.service
+
+[Install]
+WantedBy=timers.target
+```
+
+Reload the systemd configuration and enable and start the timer
+
+``` Command line instruction to reload systemd config and enable/start the service
+ $ sudo systemctl daemon-reload
+ $ sudo systemctl enable ci_deploy.timer
+ $ sudo systemctl start ci_deploy.timer
+```
+## Troubleshooting
+
+Since your script is running as a systemd service, you can use journalctl to see the logs:
+``` Command line instruction to see logs for the ci_deploy systemd unit
+ $ sudo journalctl -u ci_deploy
+```

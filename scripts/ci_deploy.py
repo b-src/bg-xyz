@@ -7,11 +7,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
+from requests.models import HTTPError
+
 
 repo_url = "https://api.github.com/repos/b-src/bg-xyz/actions/artifacts"
 home_path = Path("/home/ci_deploy")
 artifact_timestamp_file_path = home_path / "last_deployed_time.txt"
 deploy_path = home_path / "sites"
+token_path = Path("/usr/local/share/ci_deploy/ci_deploy_token.txt")
 
 
 def configure_logging() -> logging.Logger:
@@ -24,6 +27,20 @@ def configure_logging() -> logging.Logger:
 
 
 logger = configure_logging()
+
+
+def get_token_from_file(token_file_path: Path) -> str:
+    token = ""
+    try:
+        with open(token_file_path, "r") as tf:
+            token = tf.read().strip()
+
+    except FileNotFoundError as e:
+        logger.critical("Token file not found at %s: %s", token_file_path, str(e))
+    except PermissionError as e:
+        logger.critical("Invalid permissions for %s: %s", token_file_path, str(e))
+
+    return token
 
 
 def get_latest_artifact(repo_url: str) -> Dict[str, Any]:
@@ -58,23 +75,28 @@ def artifact_is_new(artifact_created_time: datetime) -> bool:
 def deploy_artifact(artifact_download_url: str, artifact_created_time: datetime) -> None:
     file_name = home_path / f"artifact_{datetime.strftime(artifact_created_time, '%m_%d_%Y_%H_%M_%S')}.zip"
     logger.info("Downloading %s", artifact_download_url)
-    artifact_zip = requests.get(url=artifact_download_url)
-    with open(file_name, "wb") as f:
-        f.write(artifact_zip.content)
+    try:
+        token = get_token_from_file(token_path)
+        artifact_zip = requests.get(url=artifact_download_url, headers = {"Authorization": f"token: {token}"})
+        artifact_zip.raise_for_status()
+        with open(file_name, "wb") as f:
+            f.write(artifact_zip.content)
 
-    if deploy_path.exists():
-        logger.info("Removing existing deployment")
-        shutil.rmtree(deploy_path)
+        if deploy_path.exists():
+            logger.info("Removing existing deployment")
+            shutil.rmtree(deploy_path)
 
-    deploy_path.mkdir()
-    logger.info("Unzipping new artifact into %s", deploy_path)
-    shutil.unpack_archive(str(file_name), str(deploy_path))
-    logger.info("Deployment successful")
+        deploy_path.mkdir()
+        logger.info("Unzipping new artifact into %s", deploy_path)
+        shutil.unpack_archive(str(file_name), str(deploy_path))
+        logger.info("Deployment successful")
 
-    set_previous_artifact_time(artifact_created_time)
+        set_previous_artifact_time(artifact_created_time)
 
-    logger.info("Deleting downloaded artifact at %s", file_name)
-    file_name.unlink()
+        logger.info("Deleting downloaded artifact at %s", file_name)
+        file_name.unlink()
+    except HTTPError as e:
+        logger.error("Error downloading artifact: %s", e)
 
 
 if __name__ == "__main__":
@@ -84,9 +106,12 @@ if __name__ == "__main__":
         artifact_created_time = datetime.strptime(latest_artifact["created_at"], "%Y-%m-%dT%H:%M:%SZ")
 
         if artifact_is_new(artifact_created_time):
-            logger.info("New artifact found, deploying")
-            artifact_download_url = latest_artifact["archive_download_url"]
-            deploy_artifact(artifact_download_url, artifact_created_time)
+            if latest_artifact["expired"] == True:
+                logger.error("Latest artifact is newer than deployed artifact but is expired and cannot be deployed")
+            else:
+                logger.info("New artifact found, deploying")
+                artifact_download_url = latest_artifact["archive_download_url"]
+                deploy_artifact(artifact_download_url, artifact_created_time)
         else:
             logger.info("Latest artifact already deployed, nothing to do")
 
